@@ -135,15 +135,35 @@ $whereSql = "1=1";
 $params = [];
 
 if (!$is_general) {
-    if ($route_id && $auto_select_customer !== '') {
-        $whereSql = "c.route_id = ? OR c.id = ?";
-        $params = [$route_id, (int)$auto_select_customer];
-    } elseif ($route_id) {
-        $whereSql = "c.route_id = ?";
-        $params = [$route_id];
-    } elseif ($auto_select_customer !== '') {
-        $whereSql = "c.id = ?";
-        $params = [(int)$auto_select_customer];
+    // Fetch the territory_id for the current route
+    $territory_id = null;
+    if ($route_id) {
+        $tStmt = $pdo->prepare("SELECT territory_id FROM routes WHERE id = ?");
+        $tStmt->execute([$route_id]);
+        $territory_id = $tStmt->fetchColumn();
+    }
+
+    if ($territory_id) {
+        // Fetch customers in all routes that belong to this territory
+        if ($auto_select_customer !== '') {
+            $whereSql = "c.route_id IN (SELECT id FROM routes WHERE territory_id = ?) OR c.id = ?";
+            $params = [$territory_id, (int)$auto_select_customer];
+        } else {
+            $whereSql = "c.route_id IN (SELECT id FROM routes WHERE territory_id = ?)";
+            $params = [$territory_id];
+        }
+    } else {
+        // Fallback to route_id if no territory is assigned
+        if ($route_id && $auto_select_customer !== '') {
+            $whereSql = "c.route_id = ? OR c.id = ?";
+            $params = [$route_id, (int)$auto_select_customer];
+        } elseif ($route_id) {
+            $whereSql = "c.route_id = ?";
+            $params = [$route_id];
+        } elseif ($auto_select_customer !== '') {
+            $whereSql = "c.id = ?";
+            $params = [(int)$auto_select_customer];
+        }
     }
 }
 

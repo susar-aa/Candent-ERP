@@ -8,7 +8,7 @@ $cur = basename($_SERVER['PHP_SELF']);
 
 // --- Module Group Mappings ---
 $sales_pages     = ['sales_overview.php','create_order.php','orders_list.php','rep_targets.php','online_orders.php', 'create_quotation.php'];
-$routes_pages    = ['dispatch.php', 'load_vehicle.php', 'vehicle_audit.php', 'routes.php', 'route_sales.php', 'meter_readings.php'];
+$routes_pages    = ['dispatch.php', 'load_vehicle.php', 'vehicle_audit.php', 'territories.php', 'routes.php', 'route_sales.php', 'meter_readings.php'];
 $pur_pages       = ['purchasing_overview.php','create_po.php','purchase_orders.php','create_grn.php','grn_list.php','stock_ledger.php'];
 $setup_pages     = ['setup_overview.php','products.php','categories.php','main_categories.php','suppliers.php','product_gallery.php']; // Added main_categories.php
 $fin_pages       = ['finance_overview.php','cheques.php','bank_cash.php','pnl_report.php','expenses.php','sales_returns.php', 'aging_reports.php']; // ADDED aging_reports.php
@@ -226,6 +226,11 @@ $tracking_pages  = ['live_tracking.php', 'route_tracking_history.php'];
                 <?php if(hasAccess('vehicle_audit.php')): ?>
                 <li><a href="vehicle_audit.php" class="<?php echo $cur=='vehicle_audit.php'?'active':''; ?>">
                     <span class="sub-dot"></span> Vehicle Stock Audit
+                </a></li>
+                <?php endif; ?>
+                <?php if(hasAccess('territories.php')): ?>
+                <li><a href="territories.php" class="<?php echo $cur=='territories.php'?'active':''; ?>">
+                    <span class="sub-dot"></span> Manage Territories
                 </a></li>
                 <?php endif; ?>
                 <?php if(hasAccess('routes.php')): ?>
