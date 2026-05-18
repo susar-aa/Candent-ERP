@@ -67,7 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $pdo->beginTransaction();
                 if ($cheque_type == 'incoming') {
                     $pdo->prepare("UPDATE cheques SET order_id = ? WHERE id = ?")->execute([$entity_id, $cheque_id]);
-                    $pdo->prepare("UPDATE orders SET payment_status = 'waiting', payment_method = 'Cheque' WHERE id = ?")->execute([$entity_id]);
+                    $chkStmt = $pdo->prepare("SELECT amount FROM cheques WHERE id = ?");
+                    $chkStmt->execute([$cheque_id]);
+                    $amt = $chkStmt->fetchColumn();
+                    $pdo->prepare("UPDATE orders SET payment_status = 'waiting', payment_method = 'Cheque', paid_amount = paid_amount + ?, paid_cheque = paid_cheque + ? WHERE id = ?")->execute([$amt, $amt, $entity_id]);
                 } else {
                     $pdo->prepare("UPDATE cheques SET grn_id = ? WHERE id = ?")->execute([$entity_id, $cheque_id]);
                     $pdo->prepare("UPDATE grns SET payment_status = 'waiting', payment_method = 'Cheque' WHERE id = ?")->execute([$entity_id]);
@@ -99,9 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $pdo->prepare("UPDATE company_finances SET bank_balance = bank_balance + ? WHERE id = 1")->execute([$chk['amount']]);
                     $pdo->prepare("INSERT INTO finance_logs (type, amount, description, created_by) VALUES ('bank_in', ?, ?, ?)")->execute([$chk['amount'], "Incoming Cheque Cleared: {$chk['cheque_number']} ({$chk['bank_name']})", $_SESSION['user_id']]);
                     
-                    if ($chk['order_id']) $pdo->prepare("UPDATE orders SET payment_status = 'paid', paid_amount = paid_amount + ? WHERE id = ?")->execute([$chk['amount'], $chk['order_id']]);
+                    if ($chk['order_id']) $pdo->prepare("UPDATE orders SET payment_status = 'paid' WHERE id = ?")->execute([$chk['order_id']]);
                 } elseif ($new_status === 'returned' && $chk['order_id']) {
-                    $pdo->prepare("UPDATE orders SET payment_status = 'pending' WHERE id = ?")->execute([$chk['order_id']]);
+                    $pdo->prepare("UPDATE orders SET payment_status = 'pending', paid_amount = GREATEST(0, paid_amount - ?), paid_cheque = GREATEST(0, paid_cheque - ?) WHERE id = ?")->execute([$chk['amount'], $chk['amount'], $chk['order_id']]);
                 }
             } else {
                 // Outgoing Cheque Logic
@@ -129,12 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         $cheque_id = (int)$_POST['cheque_id'];
         try {
             $pdo->beginTransaction();
-            $chkStmt = $pdo->prepare("SELECT type, order_id, grn_id FROM cheques WHERE id = ?");
+            $chkStmt = $pdo->prepare("SELECT type, order_id, grn_id, amount FROM cheques WHERE id = ?");
             $chkStmt->execute([$cheque_id]);
             $chk = $chkStmt->fetch();
 
             if ($chk['type'] == 'incoming' && $chk['order_id']) {
-                $pdo->prepare("UPDATE orders SET payment_status = 'pending' WHERE id = ? AND payment_status = 'waiting'")->execute([$chk['order_id']]);
+                $pdo->prepare("UPDATE orders SET payment_status = 'pending', paid_amount = GREATEST(0, paid_amount - ?), paid_cheque = GREATEST(0, paid_cheque - ?) WHERE id = ? AND payment_status = 'waiting'")->execute([$chk['amount'], $chk['amount'], $chk['order_id']]);
             } elseif ($chk['type'] == 'outgoing' && $chk['grn_id']) {
                 $pdo->prepare("UPDATE grns SET payment_status = 'pending' WHERE id = ? AND payment_status = 'waiting'")->execute([$chk['grn_id']]);
             }
