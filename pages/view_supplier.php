@@ -919,7 +919,7 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
 
                     <div class="mb-4">
                         <label class="form-label fw-bold small text-muted text-uppercase" style="letter-spacing: 0.05em;">Payment Amount (Rs) <span class="text-danger">*</span></label>
-                        <input type="number" step="0.01" name="payment_amount" id="payAmountInput" class="clean-input mono text-center fs-3 py-3" max="<?php echo $outstanding_balance; ?>" required placeholder="0.00" style="color: var(--primary); font-weight: 700;">
+                        <input type="number" step="0.01" name="payment_amount" id="payAmountInput" class="clean-input mono text-center fs-3 py-3" required placeholder="0.00" style="color: var(--primary); font-weight: 700;">
                     </div>
 
                     <div class="mb-3">
@@ -947,7 +947,7 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
 
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="submit" class="btn-full" style="background: var(--primary);" onclick="return confirm('Confirm processing this payment? Company finances will be adjusted instantly.');"><i class="bi bi-check2-circle me-1"></i> Confirm Payment</button>
+                    <button type="submit" class="btn-full" style="background: var(--primary);"><i class="bi bi-check2-circle me-1"></i> Confirm Payment</button>
                 </div>
             </form>
         </div>
@@ -961,7 +961,6 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
     // Programmatic modal trigger to guarantee modal opens in all iframe environments
     function openRecordPaymentModal() {
         console.log("openRecordPaymentModal function called.");
-        alert("Record Payment button successfully clicked! Launching form...");
         const modalEl = document.getElementById('recordPaymentModal');
         if (!modalEl) {
             console.error("Modal element 'recordPaymentModal' not found in DOM!");
