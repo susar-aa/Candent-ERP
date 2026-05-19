@@ -51,6 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 // Update GRN status to waiting
                 $pdo->prepare("UPDATE grns SET payment_status = 'waiting', payment_method = 'Cheque' WHERE id = ?")->execute([$grn_id]);
                 
+                // Log to supplier_payments
+                $grn_no = "GRN-" . str_pad($grn_id, 6, '0', STR_PAD_LEFT);
+                $reference = "$bank_name - $cheque_number";
+                $pdo->prepare("INSERT INTO supplier_payments (supplier_id, amount, method, reference, notes) VALUES (?, ?, 'Cheque', ?, ?)")
+                    ->execute([$grn['supplier_id'], $pay_amount, $reference, "Outgoing Cheque recorded on GRN #$grn_id"]);
+
                 $message = "<div class='ios-alert' style='background: rgba(52,199,89,0.1); color: #1A9A3A;'><i class='bi bi-check-circle-fill me-2'></i> Cheque payment recorded. GRN is now WAITING for cheque clearance.</div>";
 
             } else {
@@ -78,6 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $pdo->prepare("UPDATE company_finances SET bank_balance = bank_balance - ? WHERE id = 1")->execute([$pay_amount]);
                     $pdo->prepare("INSERT INTO finance_logs (type, amount, description, created_by) VALUES ('bank_out', ?, ?, ?)")->execute([$pay_amount, "GRN Payment (Bank) - GRN #$grn_id", $_SESSION['user_id']]);
                 }
+
+                // Log to supplier_payments
+                $grn_no = "GRN-" . str_pad($grn_id, 6, '0', STR_PAD_LEFT);
+                $pdo->prepare("INSERT INTO supplier_payments (supplier_id, amount, method, reference, notes) VALUES (?, ?, ?, ?, 'Subsequent GRN Payment')")
+                    ->execute([$grn['supplier_id'], $pay_amount, $payment_method, $grn_no]);
 
                 $message = "<div class='ios-alert' style='background: rgba(52,199,89,0.1); color: #1A9A3A;'><i class='bi bi-check-circle-fill me-2'></i> Payment of Rs " . number_format($pay_amount, 2) . " processed via $payment_method!</div>";
             }

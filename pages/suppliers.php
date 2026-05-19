@@ -280,6 +280,11 @@ include '../includes/sidebar.php';
                     </td>
                     <td style="text-align: right;" class="pe-4">
                         <div class="d-flex justify-content-end gap-1 flex-wrap">
+                            <!-- Supplier Profile Button -->
+                            <button class="quick-btn quick-btn-ghost" style="padding: 6px 10px;" title="Supplier Profile" onclick="openProfileModal(<?php echo $s['id']; ?>)">
+                                <i class="bi bi-person-vcard-fill" style="color: #CC2200;"></i>
+                            </button>
+
                             <!-- View Button -->
                             <button class="quick-btn quick-btn-ghost" style="padding: 6px 10px;" title="View Details" onclick='openViewModal(<?php echo htmlspecialchars(json_encode([
                                 "company_name" => $s['company_name'],
@@ -634,6 +639,33 @@ function openViewModal(data) {
 
     new bootstrap.Modal(document.getElementById('viewSupplierModal')).show();
 }
+</script>
+
+<!-- Supplier Profile Iframe Modal (Triggered via "Profile" button) -->
+<div class="modal fade" id="supplierProfileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;overflow:hidden;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+            <div class="modal-header" style="background:var(--ios-surface);border-bottom:1px solid var(--ios-separator);padding:14px 20px;">
+                <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="bi bi-person-vcard text-danger me-2"></i>Supplier Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="background:var(--ios-bg);">
+                <iframe id="supplierProfileIframe" src="" style="width:100%;height:80vh;border:none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Open Supplier Profile inside the iframe modal
+function openProfileModal(id) {
+    document.getElementById('supplierProfileIframe').src = 'view_supplier.php?id=' + id + '&modal=true';
+    new bootstrap.Modal(document.getElementById('supplierProfileModal')).show();
+}
+// Reload page on modal close to refresh payables and outstanding amounts
+document.getElementById('supplierProfileModal').addEventListener('hidden.bs.modal', function () {
+    location.reload();
+});
 </script>
 
 <?php include '../includes/footer.php'; ?>

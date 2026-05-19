@@ -241,7 +241,7 @@ include '../includes/sidebar.php';
                         <?php foreach($ap_records as $ap): ?>
                         <tr>
                             <td>
-                                <a href="grn_list.php?supplier_id=<?php echo $ap['id']; ?>" class="fw-bold text-dark text-decoration-none">
+                                <a href="view_supplier.php?id=<?php echo $ap['id']; ?>" class="fw-bold text-dark text-decoration-none">
                                     <?php echo htmlspecialchars($ap['name']); ?> <i class="bi bi-box-arrow-up-right text-primary small"></i>
                                 </a>
                                 <div class="small text-muted"><i class="bi bi-telephone"></i> <?php echo htmlspecialchars($ap['phone'] ?: 'N/A'); ?></div>
