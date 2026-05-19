@@ -76,13 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         try {
             $pdo->beginTransaction();
 
-            // Verify sufficient company finances if cash or bank transfer
+            // Fetch or initialize Company Finances row 1
             $fin = $pdo->query("SELECT * FROM company_finances WHERE id = 1 FOR UPDATE")->fetch();
-            if ($payment_method === 'Cash' && $pay_amount > $fin['cash_on_hand']) {
-                throw new Exception("Insufficient Cash on Hand to process this payment. (Available: Rs " . number_format($fin['cash_on_hand'], 2) . ")");
-            }
-            if ($payment_method === 'Bank Transfer' && $pay_amount > $fin['bank_balance']) {
-                throw new Exception("Insufficient Bank Balance to process this payment. (Available: Rs " . number_format($fin['bank_balance'], 2) . ")");
+            if (!$fin) {
+                $pdo->exec("INSERT INTO company_finances (id, cash_on_hand, bank_balance) VALUES (1, 0, 0)");
+                $fin = ['cash_on_hand' => 0.00, 'bank_balance' => 0.00];
             }
 
             // Distribute payment across unpaid GRNs, oldest first
@@ -118,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
             // Capture reference and handle cheque linking
             $reference = trim($_POST['payment_reference'] ?? "");
-            if ($payment_method === 'Cheque' && $first_grn_id) {
+            if ($payment_method === 'Cheque') {
                 $bank_name = trim($_POST['cheque_bank']);
                 $cheque_number = trim($_POST['cheque_number']);
                 $banking_date = $_POST['cheque_date'];
@@ -131,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 ");
                 $chkStmt->execute([$supplier_id, $first_grn_id, $bank_name, $cheque_number, $banking_date, $pay_amount]);
             } else {
-                // Deduct from Company Finances instantly for Cash or Bank Transfer
+                // Deduct from Company Finances instantly for Cash or Bank Transfer (allow negative balance to prevent blocking administrators)
                 if ($payment_method === 'Cash') {
                     $pdo->prepare("UPDATE company_finances SET cash_on_hand = cash_on_hand - ? WHERE id = 1")->execute([$pay_amount]);
                     $pdo->prepare("INSERT INTO finance_logs (type, amount, description, created_by) VALUES ('cash_out', ?, ?, ?)")->execute([$pay_amount, "Supplier Account Pay (Cash) - Supplier #$supplier_id", $_SESSION['user_id']]);
