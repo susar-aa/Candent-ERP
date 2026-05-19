@@ -204,21 +204,27 @@ if (strlen($whatsapp_clean) == 10 && str_starts_with($whatsapp_clean, '0')) {
 $metricsStmt = $pdo->prepare("
     SELECT 
         COUNT(id) as total_grns,
-        SUM(total_amount) as total_billed,
-        SUM(paid_amount) as total_paid,
-        SUM(total_amount - paid_amount) as outstanding_balance
+        SUM(total_amount) as total_billed
     FROM grns 
     WHERE supplier_id = ?
 ");
 $metricsStmt->execute([$supplier_id]);
 $metrics = $metricsStmt->fetch();
 
+// Fetch Total Paid from dedicated payments table
+$paidStmt = $pdo->prepare("SELECT SUM(amount) FROM supplier_payments WHERE supplier_id = ?");
+$paidStmt->execute([$supplier_id]);
+$total_paid = (float)$paidStmt->fetchColumn() ?: 0.00;
+
+$metrics['total_paid'] = $total_paid;
+$metrics['total_billed'] = (float)($metrics['total_billed'] ?? 0.00);
+
 // Fetch Total PO Count
 $poCountStmt = $pdo->prepare("SELECT COUNT(*) FROM purchase_orders WHERE supplier_id = ?");
 $poCountStmt->execute([$supplier_id]);
 $total_pos = $poCountStmt->fetchColumn() ?: 0;
 
-$outstanding_balance = $metrics['outstanding_balance'] ?: 0;
+$outstanding_balance = $metrics['total_billed'] - $total_paid;
 
 // Fetch Recent GRNs
 $grnsStmt = $pdo->prepare("
@@ -602,17 +608,15 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
                 </div>
             </div>
             <div class="col-md-3 col-6">
-                <div class="metric-card highlight">
-                    <div class="metric-title">Outstanding Payable</div>
-                    <div class="metric-value">Rs <?php echo number_format($outstanding_balance, 2); ?></div>
+                <div class="metric-card <?php echo $outstanding_balance > 0 ? 'highlight' : ''; ?>" style="<?php echo $outstanding_balance < 0 ? 'background: var(--success-bg); border-color: #A7F3D0;' : ''; ?>">
+                    <div class="metric-title" style="<?php echo $outstanding_balance < 0 ? 'color: var(--success);' : ''; ?>">Outstanding Payable</div>
+                    <div class="metric-value" style="<?php echo $outstanding_balance < 0 ? 'color: var(--success);' : ''; ?>">
+                        Rs <?php echo ($outstanding_balance < 0 ? '-' : '') . number_format(abs($outstanding_balance), 2); ?>
+                    </div>
                     
-                    <?php if($outstanding_balance > 0): ?>
-                        <button class="btn-action animate-bounce" onclick="openRecordPaymentModal();">
-                            <i class="bi bi-cash-coin me-1"></i> Record Payment
-                        </button>
-                    <?php else: ?>
-                        <div class="text-success mt-2 fw-bold" style="font-size: 12px;"><i class="bi bi-check-circle-fill me-1"></i> Account fully paid</div>
-                    <?php endif; ?>
+                    <button class="btn-action animate-bounce mt-2" onclick="openRecordPaymentModal();" style="<?php echo $outstanding_balance <= 0 ? 'background: var(--success);' : ''; ?>">
+                        <i class="bi bi-cash-coin me-1"></i> Record Payment
+                    </button>
                 </div>
             </div>
         </div>
@@ -890,8 +894,7 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
     </div>
 </div>
 
-<!-- Record Payment Modal -->
-<?php if($outstanding_balance > 0): ?>
+<!-- Record Payment Modal (Always Rendered) -->
 <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -953,7 +956,6 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <script>
     console.log("View Supplier Script Loaded. Outstanding balance:", <?php echo json_encode($outstanding_balance); ?>);
