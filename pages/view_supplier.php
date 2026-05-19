@@ -1,4 +1,9 @@
 <?php
+// Prevent browser and proxy caching
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 // Enable error reporting for easier debugging of 500 errors
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -602,7 +607,7 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
                     <div class="metric-value">Rs <?php echo number_format($outstanding_balance, 2); ?></div>
                     
                     <?php if($outstanding_balance > 0): ?>
-                        <button class="btn-action animate-bounce" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
+                        <button class="btn-action animate-bounce" onclick="openRecordPaymentModal();">
                             <i class="bi bi-cash-coin me-1"></i> Record Payment
                         </button>
                     <?php else: ?>
@@ -951,6 +956,37 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
 <?php endif; ?>
 
 <script>
+    console.log("View Supplier Script Loaded. Outstanding balance:", <?php echo json_encode($outstanding_balance); ?>);
+    
+    // Programmatic modal trigger to guarantee modal opens in all iframe environments
+    function openRecordPaymentModal() {
+        console.log("openRecordPaymentModal function called.");
+        alert("Record Payment button successfully clicked! Launching form...");
+        const modalEl = document.getElementById('recordPaymentModal');
+        if (!modalEl) {
+            console.error("Modal element 'recordPaymentModal' not found in DOM!");
+            alert("Payment Modal element not found in DOM. Ensure outstanding balance is greater than 0.");
+            return;
+        }
+        
+        console.log("Modal element located. Checking bootstrap...");
+        if (typeof bootstrap === 'undefined') {
+            console.error("Bootstrap object is undefined! Scripts did not load properly.");
+            alert("Error: Bootstrap framework is missing. Please refresh the page.");
+            return;
+        }
+        
+        try {
+            console.log("Attempting programmatic bootstrap.Modal().show()...");
+            var modalInstance = new bootstrap.Modal(modalEl);
+            modalInstance.show();
+            console.log("Modal successfully shown programmatically!");
+        } catch (err) {
+            console.error("Error opening modal programmatically:", err);
+            alert("Modal Error: " + err.message);
+        }
+    }
+
     // Hide Back Button if opened inside an iframe modal popup
     if (window.self !== window.top) {
         const backBtnContainer = document.getElementById('backBtnContainer');
@@ -983,6 +1019,6 @@ $avatar_color = $colors[$supplier['id'] % count($colors)];
     }
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

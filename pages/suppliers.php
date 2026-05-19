@@ -659,7 +659,7 @@ function openViewModal(data) {
 <script>
 // Open Supplier Profile inside the iframe modal
 function openProfileModal(id) {
-    document.getElementById('supplierProfileIframe').src = 'view_supplier.php?id=' + id + '&modal=true';
+    document.getElementById('supplierProfileIframe').src = 'view_supplier.php?id=' + id + '&modal=true&t=' + new Date().getTime();
     new bootstrap.Modal(document.getElementById('supplierProfileModal')).show();
 }
 // Reload page on modal close to refresh payables and outstanding amounts
