@@ -13,7 +13,8 @@ $arQuery = "
     SELECT 
         c.id, c.name, c.phone,
         SUM(o.total_amount - o.paid_amount) as total_outstanding,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) <= 30 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_0_30,
+        SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) <= 14 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_0_14,
+        SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) BETWEEN 15 AND 30 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_15_30,
         SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) BETWEEN 31 AND 60 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_31_60,
         SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) BETWEEN 61 AND 90 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_61_90,
         SUM(CASE WHEN DATEDIFF(CURDATE(), o.created_at) > 90 THEN (o.total_amount - o.paid_amount) ELSE 0 END) as age_90_plus
@@ -27,11 +28,12 @@ $arQuery = "
 $ar_records = $pdo->query($arQuery)->fetchAll();
 
 $ar_totals = [
-    'total' => 0, 'age_0_30' => 0, 'age_31_60' => 0, 'age_61_90' => 0, 'age_90_plus' => 0
+    'total' => 0, 'age_0_14' => 0, 'age_15_30' => 0, 'age_31_60' => 0, 'age_61_90' => 0, 'age_90_plus' => 0
 ];
 foreach ($ar_records as $ar) {
     $ar_totals['total'] += $ar['total_outstanding'];
-    $ar_totals['age_0_30'] += $ar['age_0_30'];
+    $ar_totals['age_0_14'] += $ar['age_0_14'];
+    $ar_totals['age_15_30'] += $ar['age_15_30'];
     $ar_totals['age_31_60'] += $ar['age_31_60'];
     $ar_totals['age_61_90'] += $ar['age_61_90'];
     $ar_totals['age_90_plus'] += $ar['age_90_plus'];
@@ -42,7 +44,8 @@ $apQuery = "
     SELECT 
         s.id, s.company_name as name, s.phone,
         SUM(g.total_amount - g.paid_amount) as total_outstanding,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) <= 30 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_0_30,
+        SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) <= 14 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_0_14,
+        SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) BETWEEN 15 AND 30 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_15_30,
         SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) BETWEEN 31 AND 60 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_31_60,
         SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) BETWEEN 61 AND 90 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_61_90,
         SUM(CASE WHEN DATEDIFF(CURDATE(), g.grn_date) > 90 THEN (g.total_amount - g.paid_amount) ELSE 0 END) as age_90_plus
@@ -56,11 +59,12 @@ $apQuery = "
 $ap_records = $pdo->query($apQuery)->fetchAll();
 
 $ap_totals = [
-    'total' => 0, 'age_0_30' => 0, 'age_31_60' => 0, 'age_61_90' => 0, 'age_90_plus' => 0
+    'total' => 0, 'age_0_14' => 0, 'age_15_30' => 0, 'age_31_60' => 0, 'age_61_90' => 0, 'age_90_plus' => 0
 ];
 foreach ($ap_records as $ap) {
     $ap_totals['total'] += $ap['total_outstanding'];
-    $ap_totals['age_0_30'] += $ap['age_0_30'];
+    $ap_totals['age_0_14'] += $ap['age_0_14'];
+    $ap_totals['age_15_30'] += $ap['age_15_30'];
     $ap_totals['age_31_60'] += $ap['age_31_60'];
     $ap_totals['age_61_90'] += $ap['age_61_90'];
     $ap_totals['age_90_plus'] += $ap['age_90_plus'];
@@ -169,10 +173,11 @@ include '../includes/sidebar.php';
                     <thead class="table-light">
                         <tr>
                             <th style="width: 25%;">Customer</th>
-                            <th class="text-center" style="width: 15%;">0-30 Days</th>
-                            <th class="text-center" style="width: 15%;">31-60 Days</th>
-                            <th class="text-center text-warning" style="width: 15%;">61-90 Days</th>
-                            <th class="text-center text-danger" style="width: 15%;">90+ Days</th>
+                            <th class="text-center" style="width: 13%;">0-14 Days</th>
+                            <th class="text-center" style="width: 13%;">15-30 Days</th>
+                            <th class="text-center" style="width: 13%;">31-60 Days</th>
+                            <th class="text-center text-warning" style="width: 13%;">61-90 Days</th>
+                            <th class="text-center text-danger" style="width: 13%;">90+ Days</th>
                             <th class="text-end" style="width: 15%;">Total Ows</th>
                         </tr>
                     </thead>
@@ -185,7 +190,8 @@ include '../includes/sidebar.php';
                                 </a>
                                 <div class="small text-muted"><i class="bi bi-telephone"></i> <?php echo htmlspecialchars($ar['phone'] ?: 'N/A'); ?></div>
                             </td>
-                            <td class="text-center fw-medium"><?php echo $ar['age_0_30'] > 0 ? number_format($ar['age_0_30'], 2) : '-'; ?></td>
+                            <td class="text-center fw-medium"><?php echo $ar['age_0_14'] > 0 ? number_format($ar['age_0_14'], 2) : '-'; ?></td>
+                            <td class="text-center fw-medium"><?php echo $ar['age_15_30'] > 0 ? number_format($ar['age_15_30'], 2) : '-'; ?></td>
                             <td class="text-center fw-medium"><?php echo $ar['age_31_60'] > 0 ? number_format($ar['age_31_60'], 2) : '-'; ?></td>
                             <td class="text-center fw-bold text-warning text-dark"><?php echo $ar['age_61_90'] > 0 ? number_format($ar['age_61_90'], 2) : '-'; ?></td>
                             <td class="text-center fw-bold text-danger"><?php echo $ar['age_90_plus'] > 0 ? number_format($ar['age_90_plus'], 2) : '-'; ?></td>
@@ -194,14 +200,15 @@ include '../includes/sidebar.php';
                         <?php endforeach; ?>
                         
                         <?php if(empty($ar_records)): ?>
-                            <tr><td colspan="6" class="text-center py-5 text-muted">No outstanding accounts receivable found.</td></tr>
+                            <tr><td colspan="7" class="text-center py-5 text-muted">No outstanding accounts receivable found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                     <?php if(!empty($ar_records)): ?>
                     <tfoot class="table-light fw-bold fs-6">
                         <tr>
                             <td class="text-end text-uppercase">Grand Totals:</td>
-                            <td class="text-center">Rs <?php echo number_format($ar_totals['age_0_30'], 2); ?></td>
+                            <td class="text-center">Rs <?php echo number_format($ar_totals['age_0_14'], 2); ?></td>
+                            <td class="text-center">Rs <?php echo number_format($ar_totals['age_15_30'], 2); ?></td>
                             <td class="text-center">Rs <?php echo number_format($ar_totals['age_31_60'], 2); ?></td>
                             <td class="text-center text-warning text-dark">Rs <?php echo number_format($ar_totals['age_61_90'], 2); ?></td>
                             <td class="text-center text-danger">Rs <?php echo number_format($ar_totals['age_90_plus'], 2); ?></td>
@@ -222,10 +229,11 @@ include '../includes/sidebar.php';
                     <thead class="table-light">
                         <tr>
                             <th style="width: 25%;">Supplier</th>
-                            <th class="text-center" style="width: 15%;">0-30 Days</th>
-                            <th class="text-center" style="width: 15%;">31-60 Days</th>
-                            <th class="text-center text-warning" style="width: 15%;">61-90 Days</th>
-                            <th class="text-center text-danger" style="width: 15%;">90+ Days</th>
+                            <th class="text-center" style="width: 13%;">0-14 Days</th>
+                            <th class="text-center" style="width: 13%;">15-30 Days</th>
+                            <th class="text-center" style="width: 13%;">31-60 Days</th>
+                            <th class="text-center text-warning" style="width: 13%;">61-90 Days</th>
+                            <th class="text-center text-danger" style="width: 13%;">90+ Days</th>
                             <th class="text-end" style="width: 15%;">Total Payable</th>
                         </tr>
                     </thead>
@@ -238,7 +246,8 @@ include '../includes/sidebar.php';
                                 </a>
                                 <div class="small text-muted"><i class="bi bi-telephone"></i> <?php echo htmlspecialchars($ap['phone'] ?: 'N/A'); ?></div>
                             </td>
-                            <td class="text-center fw-medium"><?php echo $ap['age_0_30'] > 0 ? number_format($ap['age_0_30'], 2) : '-'; ?></td>
+                            <td class="text-center fw-medium"><?php echo $ap['age_0_14'] > 0 ? number_format($ap['age_0_14'], 2) : '-'; ?></td>
+                            <td class="text-center fw-medium"><?php echo $ap['age_15_30'] > 0 ? number_format($ap['age_15_30'], 2) : '-'; ?></td>
                             <td class="text-center fw-medium"><?php echo $ap['age_31_60'] > 0 ? number_format($ap['age_31_60'], 2) : '-'; ?></td>
                             <td class="text-center fw-bold text-warning text-dark"><?php echo $ap['age_61_90'] > 0 ? number_format($ap['age_61_90'], 2) : '-'; ?></td>
                             <td class="text-center fw-bold text-danger"><?php echo $ap['age_90_plus'] > 0 ? number_format($ap['age_90_plus'], 2) : '-'; ?></td>
@@ -247,14 +256,15 @@ include '../includes/sidebar.php';
                         <?php endforeach; ?>
                         
                         <?php if(empty($ap_records)): ?>
-                            <tr><td colspan="6" class="text-center py-5 text-muted">No outstanding accounts payable found.</td></tr>
+                            <tr><td colspan="7" class="text-center py-5 text-muted">No outstanding accounts payable found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                     <?php if(!empty($ap_records)): ?>
                     <tfoot class="table-light fw-bold fs-6">
                         <tr>
                             <td class="text-end text-uppercase">Grand Totals:</td>
-                            <td class="text-center">Rs <?php echo number_format($ap_totals['age_0_30'], 2); ?></td>
+                            <td class="text-center">Rs <?php echo number_format($ap_totals['age_0_14'], 2); ?></td>
+                            <td class="text-center">Rs <?php echo number_format($ap_totals['age_15_30'], 2); ?></td>
                             <td class="text-center">Rs <?php echo number_format($ap_totals['age_31_60'], 2); ?></td>
                             <td class="text-center text-warning text-dark">Rs <?php echo number_format($ap_totals['age_61_90'], 2); ?></td>
                             <td class="text-center text-danger">Rs <?php echo number_format($ap_totals['age_90_plus'], 2); ?></td>
@@ -289,16 +299,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    const bgColors = ['#198754', '#0dcaf0', '#ffc107', '#dc3545']; // Green, Info, Warning, Danger
+    const bgColors = ['#198754', '#20c997', '#0dcaf0', '#ffc107', '#dc3545']; // Green, Teal, Info, Warning, Danger
 
     <?php if($ar_totals['total'] > 0): ?>
     new Chart(document.getElementById('arChart').getContext('2d'), {
         type: 'doughnut',
         data: {
-            labels: ['0-30 Days', '31-60 Days', '61-90 Days', '90+ Days Critical'],
+            labels: ['0-14 Days', '15-30 Days', '31-60 Days', '61-90 Days', '90+ Days Critical'],
             datasets: [{
                 data: [
-                    <?php echo $ar_totals['age_0_30']; ?>,
+                    <?php echo $ar_totals['age_0_14']; ?>,
+                    <?php echo $ar_totals['age_15_30']; ?>,
                     <?php echo $ar_totals['age_31_60']; ?>,
                     <?php echo $ar_totals['age_61_90']; ?>,
                     <?php echo $ar_totals['age_90_plus']; ?>
@@ -316,10 +327,11 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(document.getElementById('apChart').getContext('2d'), {
         type: 'doughnut',
         data: {
-            labels: ['0-30 Days', '31-60 Days', '61-90 Days', '90+ Days Critical'],
+            labels: ['0-14 Days', '15-30 Days', '31-60 Days', '61-90 Days', '90+ Days Critical'],
             datasets: [{
                 data: [
-                    <?php echo $ap_totals['age_0_30']; ?>,
+                    <?php echo $ap_totals['age_0_14']; ?>,
+                    <?php echo $ap_totals['age_15_30']; ?>,
                     <?php echo $ap_totals['age_31_60']; ?>,
                     <?php echo $ap_totals['age_61_90']; ?>,
                     <?php echo $ap_totals['age_90_plus']; ?>
