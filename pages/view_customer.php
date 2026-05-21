@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $pdo->beginTransaction();
 
             // Distribute payment across unpaid orders, oldest first
-            $stmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND total_amount > paid_amount ORDER BY created_at ASC FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT id, total_amount, paid_amount, paid_cash, paid_bank, paid_cheque FROM orders WHERE customer_id = ? AND total_amount > paid_amount ORDER BY created_at ASC FOR UPDATE");
             $stmt->execute([$customer_id]);
             $unpaid_orders = $stmt->fetchAll();
 
@@ -80,6 +80,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
                 $new_paid_amount = $order['paid_amount'] + $amount_to_apply;
                 
+                // Track proper payment breakdown columns
+                $new_paid_cash = $order['paid_cash'] ?? 0;
+                $new_paid_bank = $order['paid_bank'] ?? 0;
+                $new_paid_cheque = $order['paid_cheque'] ?? 0;
+
+                if ($payment_method === 'Cash') {
+                    $new_paid_cash += $amount_to_apply;
+                } elseif ($payment_method === 'Bank Transfer') {
+                    $new_paid_bank += $amount_to_apply;
+                } elseif ($payment_method === 'Cheque') {
+                    $new_paid_cheque += $amount_to_apply;
+                }
+                
                 // Determine new status
                 if ($payment_method === 'Cheque') {
                     $new_status = 'waiting';
@@ -87,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                     $new_status = ($new_paid_amount >= $order['total_amount']) ? 'paid' : 'pending';
                 }
 
-                $updateStmt = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
-                $updateStmt->execute([$new_paid_amount, $new_status, $order['id']]);
+                $updateStmt = $pdo->prepare("UPDATE orders SET paid_amount = ?, paid_cash = ?, paid_bank = ?, paid_cheque = ?, payment_status = ? WHERE id = ?");
+                $updateStmt->execute([$new_paid_amount, $new_paid_cash, $new_paid_bank, $new_paid_cheque, $new_status, $order['id']]);
 
                 $remaining_payment -= $amount_to_apply;
             }

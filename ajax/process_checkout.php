@@ -78,35 +78,45 @@ try {
 
     // --- EDIT MODE ONLY: RESTORE OLD STOCK FIRST ---
     if ($edit_order_id) {
-        $oldOrderStmt = $pdo->prepare("SELECT assignment_id FROM orders WHERE id = ?");
+        $oldOrderStmt = $pdo->prepare("SELECT assignment_id, rep_id FROM orders WHERE id = ?");
         $oldOrderStmt->execute([$edit_order_id]);
         $oldOrder = $oldOrderStmt->fetch();
         $was_general = $oldOrder && is_null($oldOrder['assignment_id']);
+        $old_rep_id = $oldOrder['rep_id'] ?? $rep_id;
 
-        $oldItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
-        $oldItems->execute([$edit_order_id]);
-        
-        if ($was_general) {
-            $restoreStmt = $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
-            foreach($oldItems->fetchAll() as $old) {
-                $restoreStmt->execute([$old['quantity'], $old['product_id']]);
+        // Query stock_logs to see if we can restore precisely
+        $logQuery = $pdo->prepare("SELECT product_id, type, qty_change FROM stock_logs WHERE reference_id = ? AND type IN ('sale_out', 'sale_out_van')");
+        $logQuery->execute([$edit_order_id]);
+        $logs = $logQuery->fetchAll();
+
+        if (count($logs) > 0) {
+            $restoreWarehouse = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
+            $restoreVan = $pdo->prepare("UPDATE vehicle_stock SET stock_qty = stock_qty - ? WHERE rep_id = ? AND product_id = ?");
+            foreach ($logs as $log) {
+                $qty_to_restore = $log['qty_change']; // negative number, e.g. -5
+                if ($log['type'] === 'sale_out') {
+                    $restoreWarehouse->execute([$qty_to_restore, $log['product_id']]);
+                } elseif ($log['type'] === 'sale_out_van') {
+                    $restoreVan->execute([$qty_to_restore, $old_rep_id, $log['product_id']]);
+                }
             }
+            // Delete the old logs to avoid duplicates when we insert new ones below
+            $pdo->prepare("DELETE FROM stock_logs WHERE reference_id = ? AND type IN ('sale_out', 'sale_out_van')")->execute([$edit_order_id]);
         } else {
-            // It could be tiered or pure vehicle stock.
-            // For simplicity, restore tiered orders back to Warehouse if they were admin-created, 
-            // OR restore them to wherever they came from if we tracked it.
-            // But since we didn't track split sources per item in order_items, we'll restore to Van by default for rep orders,
-            // and Warehouse for admin tiered orders? Actually, the most reliable is to restore to Warehouse for tiered.
+            // Fallback to original logic if no stock logs exist (for older pre-fix orders)
+            $oldItems = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+            $oldItems->execute([$edit_order_id]);
             
-            // Check if the old order was tiered (admin created)
-            $oldOrderFull = $pdo->prepare("SELECT rep_id FROM orders WHERE id = ?");
-            $oldOrderFull->execute([$edit_order_id]);
-            $of = $oldOrderFull->fetch();
-            $old_rep_id = $of['rep_id'] ?? $rep_id;
-
-            $restoreStmt = $pdo->prepare("UPDATE vehicle_stock SET stock_qty = stock_qty + ? WHERE rep_id = ? AND product_id = ?");
-            foreach($oldItems->fetchAll() as $old) {
-                $restoreStmt->execute([$old['quantity'], $old_rep_id, $old['product_id']]);
+            if ($was_general) {
+                $restoreStmt = $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
+                foreach($oldItems->fetchAll() as $old) {
+                    $restoreStmt->execute([$old['quantity'], $old['product_id']]);
+                }
+            } else {
+                $restoreStmt = $pdo->prepare("UPDATE vehicle_stock SET stock_qty = stock_qty + ? WHERE rep_id = ? AND product_id = ?");
+                foreach($oldItems->fetchAll() as $old) {
+                    $restoreStmt->execute([$old['quantity'], $old_rep_id, $old['product_id']]);
+                }
             }
         }
         $pdo->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$edit_order_id]);
@@ -190,25 +200,58 @@ try {
     
     $grand_total = $subtotal - $bill_discount + $tax_amount;
     
-    // Calculate total provided funds
-    $applied_cheque = $paid_cheque;
-    $applied_bank = $paid_bank;
-    $applied_cash = $paid_cash;
-    $payment_to_apply = $applied_bank + $applied_cash + $applied_cheque;
-    
-    $current_paid_amount = $payment_to_apply;
-    $excess_payment = 0;
-    
-    // If the customer pays MORE than the current invoice's grand total (to clear outstanding)
-    if ($payment_to_apply > $grand_total) {
-        $excess_payment = $payment_to_apply - $grand_total;
-        $current_paid_amount = $grand_total; 
+    // --- 1.5 AUTO-APPLY ACTIVE CREDIT NOTES ---
+    $credit_applied = 0;
+    if ($customer_id && $grand_total > 0) {
+        $cnStmt = $pdo->prepare("SELECT id, paid_amount FROM orders WHERE customer_id = ? AND payment_method = 'Credit Note' AND paid_amount > 0 ORDER BY created_at ASC FOR UPDATE");
+        $cnStmt->execute([$customer_id]);
+        $credit_notes = $cnStmt->fetchAll();
+        
+        $target_to_pay = $grand_total;
+        foreach ($credit_notes as $cn) {
+            if ($target_to_pay <= 0) break;
+            
+            $cn_value = (float)$cn['paid_amount'];
+            $apply_cn = min($cn_value, $target_to_pay);
+            
+            $new_cn_paid = $cn_value - $apply_cn;
+            $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?")->execute([$new_cn_paid, $cn['id']]);
+            
+            $target_to_pay -= $apply_cn;
+            $credit_applied += $apply_cn;
+        }
     }
+
+    $remaining_grand_total = $grand_total - $credit_applied;
+
+    // Calculate checkout payments to apply to this invoice
+    $curr_cheque = min($paid_cheque, $remaining_grand_total);
+    $remaining_grand_total -= $curr_cheque;
     
+    $curr_bank = min($paid_bank, $remaining_grand_total);
+    $remaining_grand_total -= $curr_bank;
+    
+    $curr_cash = min($paid_cash, $remaining_grand_total);
+    $remaining_grand_total -= $curr_cash;
+    
+    // Remaining excess pools to distribute to older orders
+    $excess_cheque = $paid_cheque - $curr_cheque;
+    $excess_bank = $paid_bank - $curr_bank;
+    $excess_cash = $paid_cash - $curr_cash;
+    $excess_payment = $excess_cheque + $excess_bank + $excess_cash;
+
+    // Total paid on this current invoice
+    $current_paid_amount = $curr_cheque + $curr_bank + $curr_cash + $credit_applied;
+    
+    $applied_cash = $curr_cash;
+    $applied_bank = $curr_bank;
+    $applied_cheque = $curr_cheque;
+
     $payment_methods_used = [];
-    if ($paid_cash > 0) $payment_methods_used[] = 'Cash';
-    if ($paid_bank > 0) $payment_methods_used[] = 'Bank';
-    if ($paid_cheque > 0) $payment_methods_used[] = 'Cheque';
+    if ($credit_applied > 0) $payment_methods_used[] = 'Credit Note';
+    if ($applied_cash > 0) $payment_methods_used[] = 'Cash';
+    if ($applied_bank > 0) $payment_methods_used[] = 'Bank';
+    if ($applied_cheque > 0) $payment_methods_used[] = 'Cheque';
     
     if (empty($payment_methods_used)) {
         $payment_method_str = 'Credit';
@@ -252,27 +295,57 @@ try {
 
     // --- 2.5 DISTRIBUTE EXCESS PAYMENT TO OLDER INVOICES ---
     if ($excess_payment > 0 && $customer_id) {
-        $stmtUnpaid = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND total_amount > paid_amount AND id != ? ORDER BY created_at ASC FOR UPDATE");
+        $stmtUnpaid = $pdo->prepare("SELECT id, total_amount, paid_amount, paid_cash, paid_bank, paid_cheque FROM orders WHERE customer_id = ? AND total_amount > paid_amount AND id != ? ORDER BY created_at ASC FOR UPDATE");
         $stmtUnpaid->execute([$customer_id, $order_id]);
         $unpaid_orders = $stmtUnpaid->fetchAll();
         
-        $remaining_excess = $excess_payment;
-        
         foreach ($unpaid_orders as $old_order) {
-            if ($remaining_excess <= 0) break;
+            if ($excess_cheque <= 0 && $excess_bank <= 0 && $excess_cash <= 0) break;
             
             $amount_due = $old_order['total_amount'] - $old_order['paid_amount'];
-            $amount_to_apply = min($amount_due, $remaining_excess);
-            $new_paid_amount = $old_order['paid_amount'] + $amount_to_apply;
             
-            if ($applied_cheque > 0) {
-                $new_status = 'waiting';
-            } else {
-                $new_status = ($new_paid_amount >= $old_order['total_amount']) ? 'paid' : 'pending';
+            $allocated_cheque = min($excess_cheque, $amount_due);
+            $amount_due -= $allocated_cheque;
+            
+            $allocated_bank = min($excess_bank, $amount_due);
+            $amount_due -= $allocated_bank;
+            
+            $allocated_cash = min($excess_cash, $amount_due);
+            $amount_due -= $allocated_cash;
+            
+            $applied_to_old = $allocated_cheque + $allocated_bank + $allocated_cash;
+            
+            if ($applied_to_old > 0) {
+                $new_paid_amount = $old_order['paid_amount'] + $applied_to_old;
+                $new_paid_cash = $old_order['paid_cash'] + $allocated_cash;
+                $new_paid_bank = $old_order['paid_bank'] + $allocated_bank;
+                $new_paid_cheque = $old_order['paid_cheque'] + $allocated_cheque;
+                
+                if ($new_paid_cheque > 0 && $new_paid_amount < $old_order['total_amount']) {
+                    $new_status = 'waiting';
+                } else {
+                    $new_status = ($new_paid_amount >= $old_order['total_amount']) ? 'paid' : 'pending';
+                }
+                
+                $pdo->prepare("UPDATE orders SET paid_amount = ?, paid_cash = ?, paid_bank = ?, paid_cheque = ?, payment_status = ? WHERE id = ?")
+                    ->execute([$new_paid_amount, $new_paid_cash, $new_paid_bank, $new_paid_cheque, $new_status, $old_order['id']]);
+                
+                $excess_cheque -= $allocated_cheque;
+                $excess_bank -= $allocated_bank;
+                $excess_cash -= $allocated_cash;
             }
+        }
+        
+        // Leftover excess after paying off all older orders is added back to current order
+        $leftover_excess = $excess_cheque + $excess_bank + $excess_cash;
+        if ($leftover_excess > 0) {
+            $applied_cash += $excess_cash;
+            $applied_bank += $excess_bank;
+            $applied_cheque += $excess_cheque;
+            $current_paid_amount += $leftover_excess;
             
-            $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?")->execute([$new_paid_amount, $new_status, $old_order['id']]);
-            $remaining_excess -= $amount_to_apply;
+            $pdo->prepare("UPDATE orders SET paid_amount = ?, paid_cash = ?, paid_bank = ?, paid_cheque = ? WHERE id = ?")
+                ->execute([$current_paid_amount, $applied_cash, $applied_bank, $applied_cheque, $order_id]);
         }
     }
     // -------------------------------------------------------
@@ -281,6 +354,7 @@ try {
     $itemStmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, supplier_id, quantity, price, discount, is_foc, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     
     $logStmt = $pdo->prepare("INSERT INTO stock_logs (product_id, type, reference_id, qty_change, previous_stock, new_stock, created_by) VALUES (?, 'sale_out', ?, ?, ?, ?, ?)");
+    $logStmtVan = $pdo->prepare("INSERT INTO stock_logs (product_id, type, reference_id, qty_change, previous_stock, new_stock, created_by) VALUES (?, 'sale_out_van', ?, ?, ?, ?, ?)");
 
     foreach ($input['cart'] as $index => $item) {
         $supplier_id = !empty($item['supplier_id']) ? (int)$item['supplier_id'] : null;
@@ -307,15 +381,16 @@ try {
             }
             if ($logData['van_take'] > 0) {
                 $pdo->prepare("UPDATE vehicle_stock SET stock_qty = stock_qty - ? WHERE rep_id = ? AND product_id = ?")->execute([$logData['van_take'], $rep_id, $item['product_id']]);
-                $logStmt->execute([$item['product_id'], $order_id, -$logData['van_take'], $logData['van_prev'], $logData['van_prev'] - $logData['van_take'], $_SESSION['user_id']]);
+                $logStmtVan->execute([$item['product_id'], $order_id, -$logData['van_take'], $logData['van_prev'], $logData['van_prev'] - $logData['van_take'], $_SESSION['user_id']]);
             }
         } else {
             if ($is_general) {
                 $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?")->execute([$item['quantity'], $item['product_id']]);
+                $logStmt->execute([$item['product_id'], $order_id, -$item['quantity'], $logData['actual_stock'], $logData['actual_stock'] - $item['quantity'], $_SESSION['user_id']]);
             } else {
                 $pdo->prepare("UPDATE vehicle_stock SET stock_qty = stock_qty - ? WHERE rep_id = ? AND product_id = ?")->execute([$item['quantity'], $rep_id, $item['product_id']]);
+                $logStmtVan->execute([$item['product_id'], $order_id, -$item['quantity'], $logData['actual_stock'], $logData['actual_stock'] - $item['quantity'], $_SESSION['user_id']]);
             }
-            $logStmt->execute([$item['product_id'], $order_id, -$item['quantity'], $logData['actual_stock'], $logData['actual_stock'] - $item['quantity'], $_SESSION['user_id']]);
         }
     }
 

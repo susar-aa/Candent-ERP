@@ -41,6 +41,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             ON DUPLICATE KEY UPDATE stock_qty = stock_qty + ?
                         ")->execute([$rep_id, $prod_id, $qty, $qty]);
                         
+                        // 3.5 Link to route_loads if there is an active assignment for tracking dispatches
+                        $assignStmt = $pdo->prepare("SELECT id FROM rep_routes WHERE rep_id = ? AND status IN ('assigned', 'accepted') ORDER BY created_at DESC LIMIT 1");
+                        $assignStmt->execute([$rep_id]);
+                        $assignment_id = $assignStmt->fetchColumn();
+                        
+                        if ($assignment_id) {
+                            $checkLoadStmt = $pdo->prepare("SELECT id FROM route_loads WHERE assignment_id = ? AND product_id = ?");
+                            $checkLoadStmt->execute([$assignment_id, $prod_id]);
+                            $route_load_id = $checkLoadStmt->fetchColumn();
+                            
+                            if ($route_load_id) {
+                                $pdo->prepare("UPDATE route_loads SET loaded_qty = loaded_qty + ? WHERE id = ?")
+                                    ->execute([$qty, $route_load_id]);
+                            } else {
+                                $pdo->prepare("INSERT INTO route_loads (assignment_id, product_id, loaded_qty) VALUES (?, ?, ?)")
+                                    ->execute([$assignment_id, $prod_id, $qty]);
+                            }
+                        }
+                        
                         // 4. Log the transfer
                         $pdo->prepare("INSERT INTO stock_logs (product_id, type, qty_change, previous_stock, new_stock, created_by) VALUES (?, 'transfer_to_rep', ?, ?, ?, ?)")
                             ->execute([$prod_id, -$qty, $current_stock, $current_stock - $qty, $_SESSION['user_id']]);
