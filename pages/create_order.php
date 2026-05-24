@@ -66,11 +66,12 @@ if (isset($_GET['edit_id']) && hasRole(['admin', 'supervisor'])) {
     }
 }
 
-// Fetch data
+// Fetch data with route details mapping
 $custQuery = "
-    SELECT c.id, c.name, c.address, c.phone,
+    SELECT c.id, c.name, c.address, c.phone, r.name as route_name,
            (SELECT COALESCE(SUM(total_amount - paid_amount), 0) FROM orders WHERE customer_id = c.id) as outstanding
     FROM customers c
+    LEFT JOIN routes r ON c.route_id = r.id
 ";
 if (hasRole('rep')) {
     $custQuery .= " WHERE c.rep_id = " . (int)$_SESSION['user_id'];
@@ -332,6 +333,7 @@ body, html { overflow: hidden !important; }
 .ts-dropdown { border-radius: 10px; box-shadow: var(--shadow-elevated); border: 1px solid var(--ios-separator); overflow: hidden; z-index: 9999; }
 .ts-dropdown .ts-dropdown-content { max-height: 240px; }
 .custom-product-dropdown .option { padding: 0 !important; }
+.custom-customer-dropdown .option { padding: 0 !important; }
 
 /* Switch */
 .form-switch .form-check-input { height: 1.1rem; width: 2rem; cursor: pointer; }
@@ -342,6 +344,78 @@ body, html { overflow: hidden !important; }
 .c-blue   { color: #30B0C7 !important; }
 .c-orange { color: #FF9500 !important; }
 .c-red    { color: #FF3B30 !important; }
+
+/* ═══════════════════════════════════════════════
+   SMART SUGGESTIONS - FLOATING POP-UP SYSTEM
+   ═══════════════════════════════════════════════ */
+#promoSuggestionBar {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    width: 380px;
+    max-height: 420px;
+    z-index: 2000;
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1.5px solid rgba(0, 122, 255, 0.35) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16) !important;
+    padding: 14px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+#promoSuggestionBar.d-none {
+    display: none !important;
+}
+
+#promoSuggestionsList {
+    overflow-y: auto;
+    max-height: 330px;
+    padding-right: 4px;
+}
+
+#promoSuggestionsList::-webkit-scrollbar {
+    width: 4px;
+}
+#promoSuggestionsList::-webkit-scrollbar-thumb {
+    background-color: var(--ios-separator);
+    border-radius: 10px;
+}
+
+.promo-close-btn {
+    background: var(--ios-bg);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ios-label-3);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+}
+.promo-close-btn:hover {
+    background: var(--ios-red);
+    color: #fff;
+}
 </style>
 
 <!-- ═══════════════════ POS SHELL ═══════════════════ -->
@@ -404,7 +478,10 @@ body, html { overflow: hidden !important; }
                         <option value="">Walk-in Customer...</option>
                         <?php foreach ($customers as $c): ?>
                             <option value="<?php echo $c['id']; ?>"
+                                    data-name="<?php echo htmlspecialchars($c['name']); ?>"
                                     data-address="<?php echo htmlspecialchars($c['address']); ?>"
+                                    data-phone="<?php echo htmlspecialchars($c['phone']); ?>"
+                                    data-route="<?php echo htmlspecialchars($c['route_name'] ?? 'No Route Assigned'); ?>"
                                     data-outstanding="<?php echo $c['outstanding']; ?>">
                                 <?php echo htmlspecialchars($c['name']); ?>
                             </option>
@@ -455,15 +532,21 @@ body, html { overflow: hidden !important; }
                 </div>
             </div>
         </div>
-        
-        <!-- Promo Suggestions Bar -->
-        <div id="promoSuggestionBar" class="pos-card mt-2 d-none" style="background:linear-gradient(135deg, #f0f7ff 0%, #e0efff 100%); border:1px solid #cce3ff;">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <i class="bi bi-stars text-primary fs-5"></i>
-                <span class="fw-bold text-primary" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.03em;">Smart Suggestions</span>
+    </div>
+
+    <!-- ── FLOATING SMART SUGGESTIONS POP-UP ── -->
+    <div id="promoSuggestionBar" class="d-none">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-stars text-primary fs-5" style="animation: pulse 1.5s infinite;"></i>
+                <span class="fw-bold text-primary" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;">Smart Suggestions</span>
             </div>
-            <div id="promoSuggestionsList" class="d-flex flex-column gap-2"></div>
+            <button type="button" class="promo-close-btn" onclick="document.getElementById('promoSuggestionBar').classList.add('d-none')" title="Dismiss Suggestions">
+                <i class="bi bi-x-lg"></i>
+            </button>
         </div>
+        <hr class="my-1" style="border-top: 1px solid var(--ios-separator);">
+        <div id="promoSuggestionsList" class="d-flex flex-column gap-2"></div>
     </div>
 
     <!-- ── ROW 3 : Product Entry Bar ── -->
@@ -664,10 +747,65 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }, 150);
 
-    // TomSelect — customer select
-    if (document.getElementById('customerSelect')) {
-        new TomSelect('#customerSelect', { maxItems: 1 });
-    }
+    // TomSelect — customer select with multi-line cards (Displays Route, Address, Phone & Outstanding)
+    setTimeout(() => {
+        if (document.getElementById('customerSelect')) {
+            const custSelect = document.getElementById('customerSelect');
+            
+            // Destroys the pre-existing instance loaded by assets/js/orders.js so we can safely override templates
+            if (custSelect.tomselect) {
+                custSelect.tomselect.destroy();
+            }
+            
+            new TomSelect('#customerSelect', {
+                maxItems: 1,
+                searchField: ['text', 'phone', 'address', 'route'],
+                dropdownClass: 'ts-dropdown custom-customer-dropdown',
+                render: {
+                    option: function (data, escape) {
+                        const opt = Array.from(custSelect.options).find(o => String(o.value).trim() === String(data.value).trim());
+                        if (!opt || !data.value) return `<div class="p-2 text-muted">${escape(data.text)}</div>`;
+                        
+                        const name    = opt.getAttribute('data-name') || data.text;
+                        const phone   = opt.getAttribute('data-phone') || 'No Phone';
+                        const address = opt.getAttribute('data-address') || 'No Address';
+                        const route   = opt.getAttribute('data-route') || 'No Route Assigned';
+                        const outstanding = parseFloat(opt.getAttribute('data-outstanding') || '0');
+                        const outText = outstanding > 0 ? `<span class="badge bg-danger text-white ms-2" style="font-size:0.65rem; font-weight:700;">Rs ${outstanding.toFixed(2)} Out</span>` : '';
+
+                        return `
+                            <div class="px-3 py-2" style="border-bottom:1px solid var(--ios-separator); cursor:pointer;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div style="font-weight:700; font-size:0.88rem; color:#1c1c1e;">
+                                        <i class="bi bi-person-fill text-secondary me-1"></i>${escape(name)} ${outText}
+                                    </div>
+                                    <span class="badge bg-secondary" style="font-size:0.65rem; padding:3px 6px; border-radius:5px; background-color:#007aff !important;">
+                                        <i class="bi bi-truck me-1"></i>${escape(route)}
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted mt-1" style="font-size:0.74rem;">
+                                    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;" title="${escape(address)}">
+                                        <i class="bi bi-geo-alt-fill me-1" style="color:#007aff;"></i>${escape(address)}
+                                    </div>
+                                    <div style="flex-shrink:0; font-weight:600;">
+                                        <i class="bi bi-telephone-fill me-1" style="color:#34c759;"></i>${escape(phone)}
+                                    </div>
+                                </div>
+                            </div>`;
+                    },
+                    item: function (data, escape) {
+                        const opt = Array.from(custSelect.options).find(o => String(o.value).trim() === String(data.value).trim());
+                        if (!opt || !data.value) return `<div>${escape(data.text)}</div>`;
+                        const name = opt.getAttribute('data-name') || data.text;
+                        const phone = opt.getAttribute('data-phone') || '';
+                        const route = opt.getAttribute('data-route') || '';
+                        const routeStr = route ? ` - ${route}` : '';
+                        return `<div style="font-weight:700; font-size:0.82rem; color:#1c1c1e;"><i class="bi bi-person-check-fill text-success me-1"></i>${escape(name)} ${phone ? `<span style="font-weight:500; color:#8e8e93;">(${escape(phone)}${escape(routeStr)})</span>` : ''}</div>`;
+                    }
+                }
+            });
+        }
+    }, 200); // 200ms delay ensures standard orders.js code executes fully first, allowing our override to take hold
 });
 </script>
 
