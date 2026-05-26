@@ -23,7 +23,7 @@ try {
             COALESCE(SUM(o.paid_cash), 0) as cash_sales,
             COALESCE(SUM(o.paid_bank), 0) as bank_sales,
             COALESCE(SUM(o.paid_cheque), 0) as cheque_sales,
-            COALESCE(SUM(o.total_amount - o.paid_amount), 0) as credit_sales,
+            COALESCE(SUM(o.total_amount - (o.paid_cash + o.paid_bank + o.paid_cheque)), 0) as credit_sales,
             COALESCE(SUM(o.total_amount), 0) as total_sales,
             (SELECT COALESCE(SUM(amount), 0) FROM route_expenses WHERE assignment_id = rr.id) as total_expenses
         FROM rep_routes rr

@@ -317,18 +317,15 @@ try {
             
             if ($applied_to_old > 0) {
                 $new_paid_amount = $old_order['paid_amount'] + $applied_to_old;
-                $new_paid_cash = $old_order['paid_cash'] + $allocated_cash;
-                $new_paid_bank = $old_order['paid_bank'] + $allocated_bank;
-                $new_paid_cheque = $old_order['paid_cheque'] + $allocated_cheque;
                 
-                if ($new_paid_cheque > 0 && $new_paid_amount < $old_order['total_amount']) {
+                if ($allocated_cheque > 0 && $new_paid_amount < $old_order['total_amount']) {
                     $new_status = 'waiting';
                 } else {
                     $new_status = ($new_paid_amount >= $old_order['total_amount']) ? 'paid' : 'pending';
                 }
                 
-                $pdo->prepare("UPDATE orders SET paid_amount = ?, paid_cash = ?, paid_bank = ?, paid_cheque = ?, payment_status = ? WHERE id = ?")
-                    ->execute([$new_paid_amount, $new_paid_cash, $new_paid_bank, $new_paid_cheque, $new_status, $old_order['id']]);
+                $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?")
+                    ->execute([$new_paid_amount, $new_status, $old_order['id']]);
                 
                 $excess_cheque -= $allocated_cheque;
                 $excess_bank -= $allocated_bank;

@@ -84,21 +84,24 @@ try {
     $gpsStmt->execute([$asg['rep_id'], $asg['assign_date']]);
     $gps_logs = $gpsStmt->fetchAll();
 
-    // Financial Summaries
+    // Financial Summaries (strictly as of Route operational date, unaffected by later payments)
     $total_gross = 0;
-    $total_paid = 0;
     $total_cash = 0;
     $total_bank = 0;
     $total_cheque = 0;
+    $total_paid = 0;
     $total_credit = 0;
     
     foreach ($orders as $o) {
+        $o_paid_on_route = (float)$o['paid_cash'] + (float)$o['paid_bank'] + (float)$o['paid_cheque'];
+        $o_credit_on_route = (float)$o['total_amount'] - $o_paid_on_route;
+
         $total_gross += (float)$o['total_amount'];
-        $total_paid += (float)$o['paid_amount'];
         $total_cash += (float)$o['paid_cash'];
         $total_bank += (float)$o['paid_bank'];
         $total_cheque += (float)$o['paid_cheque'];
-        $total_credit += ((float)$o['total_amount'] - (float)$o['paid_amount']);
+        $total_paid += $o_paid_on_route;
+        $total_credit += $o_credit_on_route;
     }
 
     $total_exp_amt = 0;
@@ -615,7 +618,8 @@ include '../includes/sidebar.php';
                             </thead>
                             <tbody>
                                 <?php foreach ($orders as $o): 
-                                    $outstanding = (float)$o['total_amount'] - (float)$o['paid_amount'];
+                                    $o_paid_on_route = (float)$o['paid_cash'] + (float)$o['paid_bank'] + (float)$o['paid_cheque'];
+                                    $outstanding_on_route = (float)$o['total_amount'] - $o_paid_on_route;
                                 ?>
                                 <tr>
                                     <td>
@@ -647,13 +651,13 @@ include '../includes/sidebar.php';
                                         </span>
                                     </td>
                                     <td class="text-end" style="font-weight: 600; color: #1A9A3A;">
-                                        Rs <?php echo number_format($o['paid_amount'], 2); ?>
+                                        Rs <?php echo number_format($o_paid_on_route, 2); ?>
                                         <div style="font-size: 0.65rem; color: var(--ios-label-3);" class="no-print">
                                             C:<?php echo (int)$o['paid_cash']; ?>|Ch:<?php echo (int)$o['paid_cheque']; ?>
                                         </div>
                                     </td>
-                                    <td class="text-end" style="font-weight: 600; color: <?php echo $outstanding > 0 ? '#CC2200' : 'var(--ios-label-3)'; ?>;">
-                                        <?php echo $outstanding > 0 ? 'Rs ' . number_format($outstanding, 2) : '-'; ?>
+                                    <td class="text-end" style="font-weight: 600; color: <?php echo $outstanding_on_route > 0 ? '#CC2200' : 'var(--ios-label-3)'; ?>;">
+                                        <?php echo $outstanding_on_route > 0 ? 'Rs ' . number_format($outstanding_on_route, 2) : '-'; ?>
                                     </td>
                                     <td class="text-end" style="font-weight: 800; color: var(--ios-label);">
                                         Rs <?php echo number_format($o['total_amount'], 2); ?>
