@@ -193,43 +193,70 @@ $formatted_month_year = date('F Y', strtotime($selected_month . '-01'));
     /* Printable Signature Block */
     .print-signature-section {
         display: none;
-        margin-top: 80px;
+        margin-top: 50px;
         border-top: 1px solid #ddd;
         padding-top: 20px;
     }
 
     @media print {
-        body { background: #fff !important; color: #000 !important; font-family: 'Times New Roman', serif; }
+        @page {
+            size: A4 portrait;
+            margin: 8mm;
+        }
+        body { 
+            background: #fff !important; 
+            color: #000 !important; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+            font-size: 7.5pt !important;
+            line-height: 1.1 !important;
+        }
         .no-print { display: none !important; }
+        .candent-topbar { display: none !important; }
         #sidebarMenu { display: none !important; }
-        #mainContent { margin-left: 0 !important; padding: 0 !important; }
-        .dash-card { box-shadow: none !important; border: 1px solid #000 !important; margin-bottom: 20px !important; }
+        .d-flex { display: block !important; } /* Un-flex main wrappers */
+        #mainContent { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+        .dash-card { box-shadow: none !important; border: 1px solid #000 !important; margin: 0 0 12px 0 !important; border-radius: 0 !important; }
         .metrics-card { display: none !important; }
-        .table-ios-header th {
-            background: #f0f0f0 !important;
-            color: #000 !important;
-            border-bottom: 2px solid #000 !important;
-            font-size: 0.8rem !important;
-            font-weight: bold !important;
+        
+        .currency-label { display: none !important; } /* Strips 'Rs' during printing to save space */
+        
+        /* Thin rows for paper saving */
+        .ios-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
         }
         .ios-table td {
-            border-bottom: 1px solid #ccc !important;
+            border-bottom: 1px solid #000 !important;
             color: #000 !important;
-            font-size: 0.85rem !important;
+            font-size: 7.5pt !important;
+            padding: 4px 6px !important; /* Tiny row height */
+            line-height: 1.1 !important;
+        }
+        .table-ios-header th {
+            background: #f2f2f7 !important;
+            color: #000 !important;
+            border: 1px solid #000 !important;
+            border-bottom: 2px solid #000 !important;
+            font-size: 7.5pt !important;
+            font-weight: bold !important;
+            padding: 4px 6px !important;
+            text-transform: none !important;
+            letter-spacing: 0 !important;
         }
         .print-header-block {
             display: block !important;
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px double #000;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
         }
         .print-signature-section {
             display: block !important;
+            margin-top: 30px !important;
         }
         .text-success { color: #000 !important; font-weight: bold; }
         .text-danger { color: #000 !important; font-style: italic; }
-        .ios-badge { background: none !important; color: #000 !important; border: 1px solid #000 !important; padding: 2px 6px !important; }
+        .ios-badge { background: none !important; color: #000 !important; border: 1px solid #000 !important; padding: 2px 6px !important; border-radius: 4px !important; }
     }
 </style>
 
@@ -404,7 +431,7 @@ $formatted_month_year = date('F Y', strtotime($selected_month . '-01'));
                         </div>
                     </td>
                     <td style="text-align: right;">
-                        <span style="font-weight: 600;">Rs <?php echo number_format($liquid_sale, 2); ?></span>
+                        <span style="font-weight: 600;"><span class="currency-label">Rs </span><?php echo number_format($liquid_sale, 2); ?></span>
                         <?php if ((float)$row['bank_sales'] > 0): ?>
                             <div style="font-size: 0.7rem; color: var(--ios-label-3);" class="no-print">
                                 (Cash: <?php echo number_format($row['cash_sales'], 0); ?> | Bank: <?php echo number_format($row['bank_sales'], 0); ?>)
@@ -413,24 +440,24 @@ $formatted_month_year = date('F Y', strtotime($selected_month . '-01'));
                     </td>
                     <td style="text-align: right;">
                         <?php if ($cheque_sale > 0): ?>
-                            <span style="font-weight: 600;" class="text-warning">Rs <?php echo number_format($cheque_sale, 2); ?></span>
+                            <span style="font-weight: 600;" class="text-warning"><span class="currency-label">Rs </span><?php echo number_format($cheque_sale, 2); ?></span>
                         <?php else: ?>
                             <span style="color: var(--ios-label-3); font-size: 0.85rem;">-</span>
                         <?php endif; ?>
                     </td>
                     <td style="text-align: right;">
                         <?php if ($credit_sale > 0): ?>
-                            <span style="font-weight: 600; color: #CC2200;">Rs <?php echo number_format($credit_sale, 2); ?></span>
+                            <span style="font-weight: 600; color: #CC2200;"><span class="currency-label">Rs </span><?php echo number_format($credit_sale, 2); ?></span>
                         <?php else: ?>
                             <span style="color: var(--ios-label-3); font-size: 0.85rem;">-</span>
                         <?php endif; ?>
                     </td>
                     <td style="text-align: right; background: rgba(0,122,255,0.01); font-weight: 700; color: #0055CC;">
-                        Rs <?php echo number_format($total_sale, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_sale, 2); ?>
                     </td>
                     <td style="text-align: right; font-weight: 700; color: #CC2200;">
                         <?php if ($expenses_total > 0): ?>
-                            Rs <?php echo number_format($expenses_total, 2); ?>
+                            <span class="currency-label">Rs </span><?php echo number_format($expenses_total, 2); ?>
                         <?php else: ?>
                             <span style="color: var(--ios-label-3); font-size: 0.85rem; font-weight: normal;">No Exp.</span>
                         <?php endif; ?>
@@ -454,19 +481,19 @@ $formatted_month_year = date('F Y', strtotime($selected_month . '-01'));
                         Month Totals:
                     </td>
                     <td style="text-align: right; padding: 16px 18px;">
-                        Rs <?php echo number_format($total_cash + $total_bank, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_cash + $total_bank, 2); ?>
                     </td>
                     <td style="text-align: right; padding: 16px 18px;">
-                        Rs <?php echo number_format($total_cheque, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_cheque, 2); ?>
                     </td>
                     <td style="text-align: right; padding: 16px 18px; color: #CC2200;">
-                        Rs <?php echo number_format($total_credit, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_credit, 2); ?>
                     </td>
                     <td style="text-align: right; padding: 16px 18px; background: rgba(0,122,255,0.03); color: #0055CC; font-size: 1rem;">
-                        Rs <?php echo number_format($total_sales, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_sales, 2); ?>
                     </td>
                     <td style="text-align: right; padding: 16px 18px; color: #CC2200;">
-                        Rs <?php echo number_format($total_expenses, 2); ?>
+                        <span class="currency-label">Rs </span><?php echo number_format($total_expenses, 2); ?>
                     </td>
                 </tr>
                 <?php endif; ?>

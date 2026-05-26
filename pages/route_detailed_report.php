@@ -106,6 +106,41 @@ try {
         $total_exp_amt += (float)$e['amount'];
     }
 
+    // 5.1 Fetch Customer Credit Outstanding Payments (Collections) on this route
+    $colStmt = $pdo->prepare("
+        SELECT cp.*, c.name as customer_name 
+        FROM customer_payments cp 
+        LEFT JOIN customers c ON cp.customer_id = c.id 
+        WHERE cp.assignment_id = ?
+        ORDER BY cp.created_at ASC
+    ");
+    $colStmt->execute([$assignment_id]);
+    $credit_payments = $colStmt->fetchAll();
+
+    // Calculate Credit Collections Breakdown
+    $coll_cash = 0.0;
+    $coll_bank = 0.0;
+    $coll_cheque = 0.0;
+    $coll_other = 0.0;
+    $coll_total = 0.0;
+
+    foreach ($credit_payments as $cp) {
+        $amt = (float)$cp['amount'];
+        $coll_total += $amt;
+        if ($cp['method'] == 'Cash') {
+            $coll_cash += $amt;
+        } elseif ($cp['method'] == 'Bank Transfer') {
+            $coll_bank += $amt;
+        } elseif ($cp['method'] == 'Cheque') {
+            $coll_cheque += $amt;
+        } else {
+            $coll_other += $amt;
+        }
+    }
+    
+    // Live calculated expected cash
+    $expected_cash_cal = max(0, $total_cash + $coll_cash - $total_exp_amt);
+
 } catch (Exception $e) {
     die("Database error: " . $e->getMessage());
 }
@@ -313,8 +348,10 @@ include '../includes/sidebar.php';
     @media print {
         body { background: #fff !important; color: #000 !important; font-family: 'Times New Roman', serif; }
         .no-print { display: none !important; }
+        .candent-topbar { display: none !important; }
         #sidebarMenu { display: none !important; }
-        #mainContent { margin-left: 0 !important; padding: 0 !important; }
+        .d-flex { display: block !important; }
+        #mainContent { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
         .detail-card { box-shadow: none !important; border: 1px solid #000 !important; border-radius: 0 !important; margin-bottom: 15px !important; }
         .tab-content > .tab-pane { display: block !important; opacity: 1 !important; visibility: visible !important; margin-top: 30px !important; }
         .ios-tabs { display: none !important; }
@@ -379,46 +416,63 @@ include '../includes/sidebar.php';
 
 <!-- Primary Stats Grid -->
 <div class="row g-3 mb-4 no-print">
-    <div class="col-md-2 col-sm-4 col-6">
+    <!-- Row 1 -->
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #007AFF, #0055CC);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Gross Sales</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_gross, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;"><?php echo count($orders); ?> Bills Issued</div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Gross Sales</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_gross, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;"><?php echo count($orders); ?> Bills Issued</div>
         </div>
     </div>
-    <div class="col-md-2 col-sm-4 col-6">
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #34C759, #30D158);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Cash &amp; Bank</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_cash + $total_bank, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;">C: <?php echo number_format($total_cash, 0); ?> | B: <?php echo number_format($total_bank, 0); ?></div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Cash &amp; Bank Sales</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_cash + $total_bank, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">C: <?php echo number_format($total_cash, 2); ?> | B: <?php echo number_format($total_bank, 2); ?></div>
         </div>
     </div>
-    <div class="col-md-2 col-sm-4 col-6">
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #FF9500, #FF8000);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Cheque Sales</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_cheque, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;">Post-dated / Collected</div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">New Cheque Sales</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_cheque, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">Received for new invoices</div>
         </div>
     </div>
-    <div class="col-md-2 col-sm-4 col-6">
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #FF3B30, #CC1500);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Credit Issued</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_credit, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;">To Customer Balances</div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">New Credit Issued</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_credit, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">Added to customer balances</div>
         </div>
     </div>
-    <div class="col-md-2 col-sm-4 col-6">
+    
+    <!-- Row 2 -->
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #5856D6, #4A47C6);">
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Credit Collections</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($coll_total, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">C: <?php echo number_format($coll_cash, 0); ?> | Chq: <?php echo number_format($coll_cheque, 0); ?> | B: <?php echo number_format($coll_bank, 0); ?></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #AF52DE, #8B2BAA);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Route Expenses</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_exp_amt, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;"><?php echo count($expenses); ?> Claims Filed</div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Route Expenses</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_exp_amt, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;"><?php echo count($expenses); ?> claims filed</div>
         </div>
     </div>
-    <div class="col-md-2 col-sm-4 col-6">
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
         <div class="metrics-card" style="background: linear-gradient(145deg, #30B0C7, #1A95AC);">
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Net Realized</div>
-            <div style="font-size: 1.25rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_paid - $total_exp_amt, 2); ?></div>
-            <div style="font-size: 0.65rem; opacity: 0.85; margin-top: 2px;">Immediate liquid margin</div>
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Expected Cash Handover</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($expected_cash_cal, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">New Cash (<?php echo number_format($total_cash, 0); ?>) + Coll (<?php echo number_format($coll_cash, 0); ?>) - Exp</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-lg-4 col-sm-6 col-12">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #FF2D55, #D81B43);">
+            <div style="font-size: 0.72rem; font-weight: 700; opacity: 0.9; text-transform: uppercase;">Net Margin Value</div>
+            <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px;">Rs <?php echo number_format($total_gross - $total_exp_amt, 2); ?></div>
+            <div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;">Gross Sales minus Expenses</div>
         </div>
     </div>
 </div>
@@ -532,10 +586,11 @@ include '../includes/sidebar.php';
     <div class="col-lg-8 col-12">
         <div class="ios-tabs no-print">
             <button class="ios-tab-btn active" onclick="switchTab(event, 'tab-invoices')"><i class="bi bi-receipt"></i> Bills Issued</button>
+            <button class="ios-tab-btn" onclick="switchTab(event, 'tab-collections')"><i class="bi bi-cash-stack"></i> Credit Collections</button>
             <button class="ios-tab-btn" onclick="switchTab(event, 'tab-stock')"><i class="bi bi-box-seam"></i> Stock Reconcile</button>
             <button class="ios-tab-btn" onclick="switchTab(event, 'tab-expenses')"><i class="bi bi-wallet2"></i> Expenses</button>
-            <button class="ios-tab-btn" onclick="switchTab(event, 'tab-visits')"><i class="bi bi-shop"></i> Shop Visits</button>
-            <button class="ios-tab-btn" onclick="switchTab(event, 'tab-gps')"><i class="bi bi-geo-alt"></i> GPS Path Logs</button>
+            <button class="ios-tab-btn" onclick="event.preventDefault(); switchTab(event, 'tab-visits');"><i class="bi bi-shop"></i> Shop Visits</button>
+            <button class="ios-tab-btn" onclick="event.preventDefault(); switchTab(event, 'tab-gps');"><i class="bi bi-geo-alt"></i> GPS Path Logs</button>
         </div>
 
         <div class="tab-content">
@@ -616,6 +671,78 @@ include '../includes/sidebar.php';
                                     <td class="text-end" style="color: #1A9A3A;">Rs <?php echo number_format($total_paid, 2); ?></td>
                                     <td class="text-end" style="color: #CC2200;">Rs <?php echo number_format($total_credit, 2); ?></td>
                                     <td class="text-end" style="color: #0055CC; font-size: 0.95rem;">Rs <?php echo number_format($total_gross, 2); ?></td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Credit Collections -->
+            <div id="tab-collections" class="tab-pane d-none print-break-page">
+                <div class="dash-card mb-4 overflow-hidden">
+                    <div class="dash-card-header no-print" style="background: var(--ios-surface); padding: 14px 18px;">
+                        <span class="card-title"><i class="bi bi-cash-stack text-success"></i> Customer Credit Collections (Collected Outstanding)</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="ios-table text-center">
+                            <thead>
+                                <tr class="table-ios-header">
+                                    <th style="text-align: left;">Customer / Outlet</th>
+                                    <th>Collection Time</th>
+                                    <th>Payment Method</th>
+                                    <th>Ref / Notes</th>
+                                    <th class="text-end">Amount Collected (Rs)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($credit_payments as $cp): ?>
+                                <tr>
+                                    <td style="text-align: left;">
+                                        <div style="font-weight: 700; color: var(--ios-label);">
+                                            <?php echo htmlspecialchars($cp['customer_name'] ?? 'Unknown Customer'); ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 0.8rem; color: var(--ios-label-2); font-weight: 600;">
+                                            <?php echo date('H:i A', strtotime($cp['created_at'])); ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="ios-badge <?php 
+                                            if($cp['method'] == 'Cash') echo 'green';
+                                            elseif($cp['method'] == 'Cheque') echo 'orange';
+                                            elseif($cp['method'] == 'Bank Transfer') echo 'blue';
+                                            else echo 'gray';
+                                        ?>">
+                                            <?php echo htmlspecialchars($cp['method']); ?>
+                                        </span>
+                                    </td>
+                                    <td style="color: var(--ios-label-2); font-weight: 500;">
+                                        <?php 
+                                            $details = [];
+                                            if($cp['reference']) $details[] = 'Ref: '.$cp['reference'];
+                                            if($cp['notes']) $details[] = $cp['notes'];
+                                            echo htmlspecialchars(implode(' | ', $details) ?: '-');
+                                        ?>
+                                    </td>
+                                    <td class="text-end" style="font-weight: 800; color: #1A9A3A;">
+                                        Rs <?php echo number_format($cp['amount'], 2); ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                                
+                                <?php if (empty($credit_payments)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No credit outstanding collections made during this route.</td>
+                                </tr>
+                                <?php else: ?>
+                                <tr style="background: var(--ios-surface-2); font-weight: 800;">
+                                    <td colspan="4" style="text-align: right;">Total Collections Audited:</td>
+                                    <td class="text-end" style="color: #1A9A3A;">
+                                        Rs <?php echo number_format($coll_total, 2); ?>
+                                    </td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
