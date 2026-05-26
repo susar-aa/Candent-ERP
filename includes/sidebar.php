@@ -14,7 +14,7 @@ $setup_pages     = ['setup_overview.php','products.php','categories.php','main_c
 $fin_pages       = ['finance_overview.php','cheques.php','bank_cash.php','pnl_report.php','expenses.php','sales_returns.php', 'aging_reports.php']; // ADDED aging_reports.php
 $hr_pages        = ['hr_overview.php','employees.php','payroll.php']; 
 $mkt_pages       = ['campaigns.php', 'promotions.php']; 
-$analytics_pages = ['reports.php', 'promo_reports.php', 'agent_claims_report.php', 'category_sales.php', 'product_sales.php', 'area_sales.php']; 
+$analytics_pages = ['reports.php', 'promo_reports.php', 'agent_claims_report.php', 'category_sales.php', 'product_sales.php', 'area_sales.php', 'monthly_route_summary.php']; 
 $tracking_pages  = ['live_tracking.php', 'route_tracking_history.php'];
 ?>
 
@@ -481,6 +481,11 @@ $tracking_pages  = ['live_tracking.php', 'route_tracking_history.php'];
                 <?php if(hasAccess('reports.php')): ?>
                 <li><a href="reports.php" class="<?php echo $cur=='reports.php'?'active':''; ?>">
                     <span class="sub-dot"></span> Sales Analytics
+                </a></li>
+                <?php endif; ?>
+                <?php if(hasAccess('monthly_route_summary.php')): ?>
+                <li><a href="monthly_route_summary.php" class="<?php echo $cur=='monthly_route_summary.php'?'active':''; ?>">
+                    <span class="sub-dot"></span> Monthly Route Summary
                 </a></li>
                 <?php endif; ?>
                 <?php if(hasAccess('promo_reports.php')): ?>

@@ -356,9 +356,14 @@ include '../includes/sidebar.php';
                         <?php endif; ?>
                     </td>
                     <td class="text-end">
-                        <button class="quick-btn quick-btn-secondary" style="padding: 6px 12px;" onclick="openReportModal(<?php echo $a['id']; ?>)" title="View Route Report">
-                            Report <i class="bi bi-file-earmark-bar-graph"></i>
-                        </button>
+                        <div class="d-flex gap-1 justify-content-end">
+                            <button class="quick-btn quick-btn-secondary" style="padding: 6px 12px;" onclick="openReportModal(<?php echo $a['id']; ?>)" title="Quick Route Summary">
+                                Quick <i class="bi bi-file-earmark-bar-graph"></i>
+                            </button>
+                            <a href="route_detailed_report.php?id=<?php echo $a['id']; ?>" class="quick-btn quick-btn-primary" style="padding: 6px 12px;" title="View Complete Detail Report">
+                                Full <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -487,7 +492,8 @@ include '../includes/sidebar.php';
                 </div>
 
             </div>
-            <div class="modal-footer" style="background: var(--ios-surface); border-top: 1px solid var(--ios-separator); padding: 16px 24px;">
+            <div class="modal-footer" style="background: var(--ios-surface); border-top: 1px solid var(--ios-separator); padding: 16px 24px; display: flex; justify-content: space-between; width: 100%;">
+                <a id="btn_full_report" href="#" class="quick-btn quick-btn-primary px-4"><i class="bi bi-box-arrow-up-right me-1"></i> Full Detailed Report</a>
                 <button type="button" class="quick-btn quick-btn-secondary px-4" data-bs-dismiss="modal">Close Report</button>
             </div>
         </div>
@@ -497,6 +503,7 @@ include '../includes/sidebar.php';
 <script>
 function openReportModal(assignmentId) {
     new bootstrap.Modal(document.getElementById('routeReportModal')).show();
+    document.getElementById('btn_full_report').href = `route_detailed_report.php?id=${assignmentId}`;
     
     document.getElementById('report_route_name').textContent = "Loading...";
     document.getElementById('report_invoices_tbody').innerHTML = '<tr><td colspan="4" class="py-4 text-center"><span class="spinner-border spinner-border-sm me-2 text-primary"></span><span class="fw-bold text-muted">Fetching...</span></td></tr>';
