@@ -66,11 +66,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['process_return'])) {
             $stmt->execute([$customer_id, $rep_id, $assignment_id, $total_return_value, $notes]);
             $return_id = $pdo->lastInsertId();
 
-            // 3. Issue Credit Note (Reduces Customer Outstanding natively)
-            // By setting total=0 and paid=ReturnValue, the formula (total - paid) results in a negative value!
+            // 3. Distribute return credit to customer's outstanding invoices, oldest first
             if ($total_return_value > 0) {
-                $cnStmt = $pdo->prepare("INSERT INTO orders (customer_id, rep_id, assignment_id, subtotal, total_amount, paid_amount, payment_method, payment_status) VALUES (?, ?, ?, 0, 0, ?, 'Credit Note', 'paid')");
-                $cnStmt->execute([$customer_id, $rep_id, $assignment_id, $total_return_value]);
+                $unpaidStmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note' AND total_amount > paid_amount ORDER BY created_at ASC FOR UPDATE");
+                $unpaidStmt->execute([$customer_id]);
+                $unpaid_orders = $unpaidStmt->fetchAll();
+
+                $remaining_credit = $total_return_value;
+                foreach ($unpaid_orders as $order) {
+                    if ($remaining_credit <= 0) break;
+                    
+                    $amount_due = $order['total_amount'] - $order['paid_amount'];
+                    $amount_to_apply = min($amount_due, $remaining_credit);
+
+                    $new_paid_amount = $order['paid_amount'] + $amount_to_apply;
+                    $new_status = ($new_paid_amount >= $order['total_amount']) ? 'paid' : 'pending';
+
+                    $updateStmt = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
+                    $updateStmt->execute([$new_paid_amount, $new_status, $order['id']]);
+
+                    $remaining_credit -= $amount_to_apply;
+                }
+
+                // Issue Credit Note ONLY for remaining excess credit
+                if ($remaining_credit > 0) {
+                    $cnStmt = $pdo->prepare("INSERT INTO orders (customer_id, rep_id, assignment_id, subtotal, total_amount, paid_amount, payment_method, payment_status) VALUES (?, ?, ?, 0, 0, ?, 'Credit Note', 'paid')");
+                    $cnStmt->execute([$customer_id, $rep_id, $assignment_id, $remaining_credit]);
+                }
             }
 
             // 4. Process Items & Restock if Good

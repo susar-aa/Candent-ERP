@@ -7,6 +7,49 @@ error_reporting(E_ALL);
 session_start();
 require_once '../config/db.php';
 
+// --- SELF-HEALING MIGRATION FOR CREDIT NOTES ---
+try {
+    $cnStmt = $pdo->query("SELECT id, customer_id, paid_amount FROM orders WHERE payment_method = 'Credit Note' AND paid_amount > 0");
+    $credit_notes = $cnStmt->fetchAll();
+    
+    foreach ($credit_notes as $cn) {
+        $cn_id = $cn['id'];
+        $cust_id = $cn['customer_id'];
+        $credit_val = (float)$cn['paid_amount'];
+        
+        if ($credit_val > 0) {
+            $unpaidStmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note' AND total_amount > paid_amount ORDER BY created_at ASC");
+            $unpaidStmt->execute([$cust_id]);
+            $unpaid_orders = $unpaidStmt->fetchAll();
+            
+            $remaining = $credit_val;
+            foreach ($unpaid_orders as $uo) {
+                if ($remaining <= 0) break;
+                
+                $due = $uo['total_amount'] - $uo['paid_amount'];
+                $apply = min($due, $remaining);
+                
+                $new_paid = $uo['paid_amount'] + $apply;
+                $new_status = ($new_paid >= $uo['total_amount']) ? 'paid' : 'pending';
+                
+                $up = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
+                $up->execute([$new_paid, $new_status, $uo['id']]);
+                
+                $remaining -= $apply;
+            }
+            
+            if ($remaining > 0) {
+                $upCN = $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?");
+                $upCN->execute([$remaining, $cn_id]);
+            } else {
+                $delCN = $pdo->prepare("DELETE FROM orders WHERE id = ?");
+                $delCN->execute([$cn_id]);
+            }
+        }
+    }
+} catch (Exception $e) {}
+
+
 $is_staff = isset($_SESSION['user_id']);
 $is_customer = isset($_SESSION['customer_id']);
 
@@ -205,7 +248,7 @@ $ordersStmt = $pdo->prepare("
     SELECT o.*, ch.status as cheque_status 
     FROM orders o 
     LEFT JOIN cheques ch ON o.id = ch.order_id
-    WHERE o.customer_id = ? 
+    WHERE o.customer_id = ? AND o.payment_method != 'Credit Note'
     ORDER BY o.created_at DESC LIMIT 15
 ");
 $ordersStmt->execute([$customer_id]);
@@ -226,7 +269,7 @@ $cheques = $chequesStmt->fetchAll();
 $ledger = [];
 
 // 1. Debits: Invoices
-$orderLedgerStmt = $pdo->prepare("SELECT id, total_amount, created_at, 'Invoice' as type FROM orders WHERE customer_id = ?");
+$orderLedgerStmt = $pdo->prepare("SELECT id, total_amount, created_at, 'Invoice' as type FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note'");
 $orderLedgerStmt->execute([$customer_id]);
 foreach($orderLedgerStmt->fetchAll() as $ol) {
     $ledger[] = [
@@ -269,7 +312,8 @@ try {
             'date' => $sr['created_at'],
             'description' => "Sales Return #" . str_pad($sr['id'], 5, '0', STR_PAD_LEFT),
             'amount' => $sr['total_amount'],
-            'entry_type' => 'credit'
+            'entry_type' => 'credit',
+            'return_id' => $sr['id']
         ];
     }
 } catch(PDOException $e) {}
@@ -678,7 +722,15 @@ $avatar_color = $colors[$customer['id'] % count($colors)];
                                         <div class="table-meta"><?php echo date('h:i A', strtotime($entry['date'])); ?></div>
                                     </td>
                                     <td>
-                                        <div class="table-desc"><?php echo $entry['description']; ?></div>
+                                        <div class="table-desc">
+                                            <?php if(isset($entry['return_id'])): ?>
+                                                <a href="view_return.php?id=<?php echo $entry['return_id']; ?>" class="text-primary text-decoration-none fw-bold" target="_blank">
+                                                    <?php echo $entry['description']; ?> <i class="bi bi-box-arrow-up-right small"></i>
+                                                </a>
+                                            <?php else: ?>
+                                                <?php echo $entry['description']; ?>
+                                            <?php endif; ?>
+                                        </div>
                                         <?php if(!empty($entry['reference'])): ?>
                                             <div class="table-meta"><i class="bi bi-info-circle me-1"></i>Ref: <?php echo htmlspecialchars($entry['reference']); ?></div>
                                         <?php endif; ?>

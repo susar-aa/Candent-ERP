@@ -215,7 +215,11 @@ try {
             $apply_cn = min($cn_value, $target_to_pay);
             
             $new_cn_paid = $cn_value - $apply_cn;
-            $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?")->execute([$new_cn_paid, $cn['id']]);
+            if ($new_cn_paid <= 0) {
+                $pdo->prepare("DELETE FROM orders WHERE id = ?")->execute([$cn['id']]);
+            } else {
+                $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?")->execute([$new_cn_paid, $cn['id']]);
+            }
             
             $target_to_pay -= $apply_cn;
             $credit_applied += $apply_cn;

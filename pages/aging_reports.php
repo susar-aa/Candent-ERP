@@ -5,6 +5,48 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once '../config/db.php';
+
+// --- SELF-HEALING MIGRATION FOR CREDIT NOTES ---
+try {
+    $cnStmt = $pdo->query("SELECT id, customer_id, paid_amount FROM orders WHERE payment_method = 'Credit Note' AND paid_amount > 0");
+    $credit_notes = $cnStmt->fetchAll();
+    
+    foreach ($credit_notes as $cn) {
+        $cn_id = $cn['id'];
+        $cust_id = $cn['customer_id'];
+        $credit_val = (float)$cn['paid_amount'];
+        
+        if ($credit_val > 0) {
+            $unpaidStmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note' AND total_amount > paid_amount ORDER BY created_at ASC");
+            $unpaidStmt->execute([$cust_id]);
+            $unpaid_orders = $unpaidStmt->fetchAll();
+            
+            $remaining = $credit_val;
+            foreach ($unpaid_orders as $uo) {
+                if ($remaining <= 0) break;
+                
+                $due = $uo['total_amount'] - $uo['paid_amount'];
+                $apply = min($due, $remaining);
+                
+                $new_paid = $uo['paid_amount'] + $apply;
+                $new_status = ($new_paid >= $uo['total_amount']) ? 'paid' : 'pending';
+                
+                $up = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
+                $up->execute([$new_paid, $new_status, $uo['id']]);
+                
+                $remaining -= $apply;
+            }
+            
+            if ($remaining > 0) {
+                $upCN = $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?");
+                $upCN->execute([$remaining, $cn_id]);
+            } else {
+                $delCN = $pdo->prepare("DELETE FROM orders WHERE id = ?");
+                $delCN->execute([$cn_id]);
+            }
+        }
+    }
+} catch (Exception $e) {}
 require_once '../includes/auth_check.php';
 requireRole(['admin', 'supervisor']); // Restricted to Management and Finance
 

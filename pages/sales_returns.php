@@ -29,7 +29,47 @@ try {
         condition_status ENUM('good', 'damaged', 'expired') DEFAULT 'good',
         FOREIGN KEY (return_id) REFERENCES sales_returns(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-} catch(PDOException $e) {}
+// --- SELF-HEALING MIGRATION FOR CREDIT NOTES ---
+try {
+    $cnStmt = $pdo->query("SELECT id, customer_id, paid_amount FROM orders WHERE payment_method = 'Credit Note' AND paid_amount > 0");
+    $credit_notes = $cnStmt->fetchAll();
+    
+    foreach ($credit_notes as $cn) {
+        $cn_id = $cn['id'];
+        $cust_id = $cn['customer_id'];
+        $credit_val = (float)$cn['paid_amount'];
+        
+        if ($credit_val > 0) {
+            $unpaidStmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note' AND total_amount > paid_amount ORDER BY created_at ASC");
+            $unpaidStmt->execute([$cust_id]);
+            $unpaid_orders = $unpaidStmt->fetchAll();
+            
+            $remaining = $credit_val;
+            foreach ($unpaid_orders as $uo) {
+                if ($remaining <= 0) break;
+                
+                $due = $uo['total_amount'] - $uo['paid_amount'];
+                $apply = min($due, $remaining);
+                
+                $new_paid = $uo['paid_amount'] + $apply;
+                $new_status = ($new_paid >= $uo['total_amount']) ? 'paid' : 'pending';
+                
+                $up = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
+                $up->execute([$new_paid, $new_status, $uo['id']]);
+                
+                $remaining -= $apply;
+            }
+            
+            if ($remaining > 0) {
+                $upCN = $pdo->prepare("UPDATE orders SET paid_amount = ? WHERE id = ?");
+                $upCN->execute([$remaining, $cn_id]);
+            } else {
+                $delCN = $pdo->prepare("DELETE FROM orders WHERE id = ?");
+                $delCN->execute([$cn_id]);
+            }
+        }
+    }
+} catch (Exception $e) {}
 
 $message = '';
 
@@ -58,10 +98,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt->execute([$customer_id, $_SESSION['user_id'], $total_return_value, $notes]);
             $return_id = $pdo->lastInsertId();
 
-            // Issue Credit Note to fix Customer Ledger Outstanding
+            // Distribute return credit to customer's outstanding invoices, oldest first
             if ($total_return_value > 0) {
-                $cnStmt = $pdo->prepare("INSERT INTO orders (customer_id, rep_id, subtotal, total_amount, paid_amount, payment_method, payment_status) VALUES (?, ?, 0, 0, ?, 'Credit Note', 'paid')");
-                $cnStmt->execute([$customer_id, $_SESSION['user_id'], $total_return_value]);
+                $unpaidStmt = $pdo->prepare("SELECT id, total_amount, paid_amount FROM orders WHERE customer_id = ? AND payment_method != 'Credit Note' AND total_amount > paid_amount ORDER BY created_at ASC FOR UPDATE");
+                $unpaidStmt->execute([$customer_id]);
+                $unpaid_orders = $unpaidStmt->fetchAll();
+
+                $remaining_credit = $total_return_value;
+                foreach ($unpaid_orders as $order) {
+                    if ($remaining_credit <= 0) break;
+                    
+                    $amount_due = $order['total_amount'] - $order['paid_amount'];
+                    $amount_to_apply = min($amount_due, $remaining_credit);
+
+                    $new_paid_amount = $order['paid_amount'] + $amount_to_apply;
+                    $new_status = ($new_paid_amount >= $order['total_amount']) ? 'paid' : 'pending';
+
+                    $updateStmt = $pdo->prepare("UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ?");
+                    $updateStmt->execute([$new_paid_amount, $new_status, $order['id']]);
+
+                    $remaining_credit -= $amount_to_apply;
+                }
+
+                // Issue Credit Note ONLY for remaining excess credit
+                if ($remaining_credit > 0) {
+                    $cnStmt = $pdo->prepare("INSERT INTO orders (customer_id, rep_id, subtotal, total_amount, paid_amount, payment_method, payment_status) VALUES (?, ?, 0, 0, ?, 'Credit Note', 'paid')");
+                    $cnStmt->execute([$customer_id, $_SESSION['user_id'], $remaining_credit]);
+                }
             }
 
             // Process Items
