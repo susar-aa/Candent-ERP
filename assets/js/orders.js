@@ -98,15 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (source === 'warehouse') {
-            if (productSelect) {
-                Array.from(productSelect.options).forEach(opt => {
-                    const whStock = opt.getAttribute('data-warehouse-stock');
-                    if (whStock !== null) {
-                        opt.setAttribute('data-stock', whStock);
-                    }
-                });
-            }
-            refreshProductTomSelect();
+            refreshProductTomSelect(source, {});
         } else if (source === 'vehicle') {
             if (!repId) {
                 alert("Please select a representative first.");
@@ -118,16 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
                 if (result.success) {
                     const stocks = result.stocks || {};
-                    if (productSelect) {
-                        Array.from(productSelect.options).forEach(opt => {
-                            const prodId = opt.value;
-                            if (prodId) {
-                                const vanStock = stocks[prodId] !== undefined ? stocks[prodId] : 0;
-                                opt.setAttribute('data-stock', vanStock);
-                            }
-                        });
-                    }
-                    refreshProductTomSelect();
+                    refreshProductTomSelect(source, stocks);
                 } else {
                     console.error("Error fetching vehicle stock:", result.error);
                 }
@@ -137,12 +120,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function refreshProductTomSelect() {
-        if (productSelect && productSelect.tomselect) {
-            const tsInstance = productSelect.tomselect;
-            const selectedVal = tsInstance.getValue();
-            tsInstance.destroy();
+    function refreshProductTomSelect(source, stocks) {
+        if (productSelect) {
+            let selectedVal = '';
             
+            // 1. Destroy existing TomSelect instance first (restores original HTML to native select)
+            if (productSelect.tomselect) {
+                selectedVal = productSelect.tomselect.getValue();
+                productSelect.tomselect.destroy();
+            }
+            
+            // 2. Update the data-stock attributes on the clean native select options
+            Array.from(productSelect.options).forEach(opt => {
+                if (source === 'warehouse') {
+                    const whStock = opt.getAttribute('data-warehouse-stock');
+                    if (whStock !== null) {
+                        opt.setAttribute('data-stock', whStock);
+                    }
+                } else if (source === 'vehicle') {
+                    const prodId = opt.value;
+                    if (prodId) {
+                        const vanStock = stocks[prodId] !== undefined ? stocks[prodId] : 0;
+                        opt.setAttribute('data-stock', vanStock);
+                    }
+                }
+            });
+            
+            // 3. Re-initialize TomSelect
             productTomSelect = new TomSelect('#productSelect', {
                 dropdownClass: 'ts-dropdown custom-product-dropdown',
                 searchField: ['text'],
