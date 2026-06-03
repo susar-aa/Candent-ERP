@@ -45,6 +45,16 @@ if (isset($_GET['edit_id']) && hasRole(['admin', 'supervisor'])) {
             ];
         }
 
+        $logTypeStmt = $pdo->prepare("SELECT type FROM stock_logs WHERE reference_id = ? AND type IN ('sale_out', 'sale_out_van') LIMIT 1");
+        $logTypeStmt->execute([$edit_id]);
+        $logTypeRow = $logTypeStmt->fetch();
+        $stock_source = 'warehouse';
+        if ($logTypeRow) {
+            $stock_source = ($logTypeRow['type'] === 'sale_out_van') ? 'vehicle' : 'warehouse';
+        } else {
+            $stock_source = is_null($order['assignment_id']) ? 'warehouse' : 'vehicle';
+        }
+
         $editDataObj = [
             'order_id'        => $order['id'],
             'customer_id'     => $order['customer_id'],
@@ -60,7 +70,8 @@ if (isset($_GET['edit_id']) && hasRole(['admin', 'supervisor'])) {
                 'number' => $cheque['cheque_number'],
                 'date'   => $cheque['banking_date']
             ] : null,
-            'cart' => $cart
+            'stock_source'    => $stock_source,
+            'cart'            => $cart
         ];
         $edit_order_data = json_encode($editDataObj);
     }
@@ -466,6 +477,13 @@ body, html { overflow: hidden !important; }
                 <input type="text" class="fi" value="<?php echo htmlspecialchars($_SESSION['user_name']); ?>" readonly>
                 <input type="hidden" id="repSelect" value="<?php echo $_SESSION['user_id']; ?>">
             <?php endif; ?>
+            <div class="mt-2">
+                <label class="lbl">Stock Source</label>
+                <select id="stockSourceSelect" class="fi" style="background:var(--ios-bg);">
+                    <option value="warehouse" selected>Warehouse Stock</option>
+                    <option value="vehicle">Vehicle Stock (selected Rep)</option>
+                </select>
+            </div>
         </div>
 
         <!-- Customer Info -->
@@ -562,6 +580,7 @@ body, html { overflow: hidden !important; }
                                 data-sku="<?php echo htmlspecialchars($p['sku']); ?>"
                                 data-price="<?php echo $p['selling_price']; ?>"
                                 data-stock="<?php echo $p['stock']; ?>"
+                                data-warehouse-stock="<?php echo $p['stock']; ?>"
                                 data-supplier="<?php echo $p['supplier_id']; ?>"
                                 data-category="<?php echo $p['category_id']; ?>"
                                 data-main-category="<?php echo $p['main_category_id']; ?>">

@@ -79,6 +79,122 @@ document.addEventListener('DOMContentLoaded', function() {
         productTomSelect = new TomSelect(productSelect, { create: false, sortField: { field: "text", direction: "asc" } });
     }
 
+    // --- STOCK LOCATION SELECTOR ---
+    const stockSourceSelect = document.getElementById('stockSourceSelect');
+    
+    async function updateStockSource(isInit = false) {
+        if (!stockSourceSelect) return;
+        const source = stockSourceSelect.value;
+        const repId = repSelect ? repSelect.value : '';
+        
+        if (!isInit && cart.length > 0) {
+            if (!confirm("Changing the stock source will clear the current cart. Do you want to proceed?")) {
+                // Revert selection
+                stockSourceSelect.value = source === 'warehouse' ? 'vehicle' : 'warehouse';
+                return;
+            }
+            cart = [];
+            renderCart();
+        }
+        
+        if (source === 'warehouse') {
+            if (productSelect) {
+                Array.from(productSelect.options).forEach(opt => {
+                    const whStock = opt.getAttribute('data-warehouse-stock');
+                    if (whStock !== null) {
+                        opt.setAttribute('data-stock', whStock);
+                    }
+                });
+            }
+            refreshProductTomSelect();
+        } else if (source === 'vehicle') {
+            if (!repId) {
+                alert("Please select a representative first.");
+                stockSourceSelect.value = 'warehouse';
+                return;
+            }
+            try {
+                const response = await fetch(`../ajax/get_vehicle_stock.php?rep_id=${repId}`);
+                const result = await response.json();
+                if (result.success) {
+                    const stocks = result.stocks || {};
+                    if (productSelect) {
+                        Array.from(productSelect.options).forEach(opt => {
+                            const prodId = opt.value;
+                            if (prodId) {
+                                const vanStock = stocks[prodId] !== undefined ? stocks[prodId] : 0;
+                                opt.setAttribute('data-stock', vanStock);
+                            }
+                        });
+                    }
+                    refreshProductTomSelect();
+                } else {
+                    console.error("Error fetching vehicle stock:", result.error);
+                }
+            } catch (error) {
+                console.error("Fetch vehicle stock error:", error);
+            }
+        }
+    }
+    
+    function refreshProductTomSelect() {
+        if (productSelect && productSelect.tomselect) {
+            const tsInstance = productSelect.tomselect;
+            const selectedVal = tsInstance.getValue();
+            tsInstance.destroy();
+            
+            productTomSelect = new TomSelect('#productSelect', {
+                dropdownClass: 'ts-dropdown custom-product-dropdown',
+                searchField: ['text'],
+                render: {
+                    option: function (data, escape) {
+                        const opt = productSelect.querySelector('option[value="' + escape(data.value) + '"]');
+                        if (!opt || !data.value) return `<div class="p-2 text-muted">${escape(data.text)}</div>`;
+                        const name  = opt.getAttribute('data-name')  || data.text;
+                        const sku   = opt.getAttribute('data-sku')   || '';
+                        const price = opt.getAttribute('data-price')  || '0.00';
+                        const stock = parseInt(opt.getAttribute('data-stock') || '0');
+                        const sCol  = stock > 10 ? 'var(--accent-dark)' : (stock > 0 ? '#C07000' : '#CC2200');
+                        return `
+                            <div class="d-flex justify-content-between px-3 py-2" style="border-bottom:1px solid var(--ios-separator);cursor:pointer;">
+                                <div style="flex:1;min-width:0;padding-right:12px;">
+                                    <div style="font-weight:700;font-size:0.88rem;color:#1c1c1e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escape(name)}</div>
+                                    <div style="font-size:0.74rem;color:#8e8e93;margin-top:2px;">SKU: ${escape(sku)}</div>
+                                </div>
+                                <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+                                    <div style="font-weight:700;font-size:0.88rem;color:var(--accent-dark);">Rs ${escape(price)}</div>
+                                    <div style="font-size:0.74rem;font-weight:600;color:${sCol};margin-top:2px;">${stock} Available</div>
+                                </div>
+                            </div>`;
+                    },
+                    item: function (data, escape) {
+                        const opt = productSelect.querySelector('option[value="' + escape(data.value) + '"]');
+                        if (!opt || !data.value) return `<div>${escape(data.text)}</div>`;
+                        const name = opt.getAttribute('data-name') || data.text;
+                        const sku  = opt.getAttribute('data-sku')  || '';
+                        return `<div style="font-weight:700;font-size:0.82rem;color:#1c1c1e;">${escape(name)} <span style="font-weight:500;color:#8e8e93;">(${escape(sku)})</span></div>`;
+                    }
+                }
+            });
+            
+            if (selectedVal) {
+                productSelect.tomselect.setValue(selectedVal);
+            }
+            productSelect.dispatchEvent(new Event('change'));
+        }
+    }
+    
+    if (stockSourceSelect) {
+        stockSourceSelect.addEventListener('change', () => updateStockSource(false));
+    }
+    if (repSelect) {
+        repSelect.addEventListener('change', () => {
+            if (stockSourceSelect && stockSourceSelect.value === 'vehicle') {
+                updateStockSource(false);
+            }
+        });
+    }
+
     // --- EDIT MODE INITIALIZATION ---
     function initEditMode() {
         if (typeof window.editInvoiceData !== 'undefined' && window.editInvoiceData !== null) {
@@ -99,6 +215,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('chkNum').value = data.cheque.number;
                 document.getElementById('chkDate').value = data.cheque.date;
                 chequeFields.classList.remove('d-none');
+            }
+            
+            if (data.stock_source && stockSourceSelect) {
+                stockSourceSelect.value = data.stock_source;
+                updateStockSource(true);
             }
             
             renderCart();
@@ -951,11 +1072,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
         let assignmentIdOverride = urlParams.get('assignment_id');
 
+        const stockSource = stockSourceSelect ? stockSourceSelect.value : 'warehouse';
+
         const payload = {
             edit_order_id: isEditing ? window.editInvoiceData.order_id : null,
             assignment_id: assignmentIdOverride || null,
             rep_id: repSelect ? repSelect.value : null,
-            tiered_stock: !!repSelect, 
+            tiered_stock: stockSourceSelect ? false : (!!repSelect),
+            is_general: stockSourceSelect ? (stockSource === 'warehouse') : false,
             customer_id: selectedCustomerData.id || (customerSelect ? customerSelect.value : null),
             bill_discount: bDis || 0,
             tax_amount: tAmt || 0,
