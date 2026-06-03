@@ -107,6 +107,8 @@ $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $limit;
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $route_filter = isset($_GET['route_id']) ? $_GET['route_id'] : '';
+$territory_filter = isset($_GET['territory_id']) ? $_GET['territory_id'] : '';
+$balance_filter = isset($_GET['balance_status']) ? $_GET['balance_status'] : '';
 
 $whereClause = "WHERE 1=1";
 $params = [];
@@ -123,19 +125,39 @@ if ($route_filter !== '') {
     $whereClause .= " AND c.route_id = ?";
     $params[] = $route_filter;
 }
+if ($territory_filter !== '') {
+    $whereClause .= " AND r.territory_id = ?";
+    $params[] = $territory_filter;
+}
+if ($balance_filter !== '') {
+    if ($balance_filter === 'outstanding') {
+        $whereClause .= " AND (SELECT COALESCE(SUM(o.total_amount - o.paid_amount), 0) FROM orders o WHERE o.customer_id = c.id AND o.payment_status != 'paid' AND o.total_amount > o.paid_amount) > 0";
+    } elseif ($balance_filter === 'cleared') {
+        $whereClause .= " AND (SELECT COALESCE(SUM(o.total_amount - o.paid_amount), 0) FROM orders o WHERE o.customer_id = c.id AND o.payment_status != 'paid' AND o.total_amount > o.paid_amount) <= 0";
+    }
+}
 
 // Get Total Rows
-$totalStmt = $pdo->prepare("SELECT COUNT(*) FROM customers c $whereClause");
+$totalStmt = $pdo->prepare("
+    SELECT COUNT(*) 
+    FROM customers c 
+    LEFT JOIN routes r ON c.route_id = r.id 
+    $whereClause
+");
 $totalStmt->execute($params);
 $totalRows = $totalStmt->fetchColumn();
 $totalPages = ceil($totalRows / $limit);
 
 // Fetch Paginated Customers
 $query = "
-    SELECT c.*, u.name as rep_name, r.name as route_name 
+    SELECT c.*, u.name as rep_name, r.name as route_name, t.name as territory_name,
+           (SELECT COALESCE(SUM(o.total_amount - o.paid_amount), 0) 
+            FROM orders o 
+            WHERE o.customer_id = c.id AND o.payment_status != 'paid' AND o.total_amount > o.paid_amount) as outstanding_balance
     FROM customers c 
     LEFT JOIN users u ON c.rep_id = u.id 
     LEFT JOIN routes r ON c.route_id = r.id
+    LEFT JOIN territories t ON r.territory_id = t.id
     $whereClause 
     ORDER BY c.name ASC 
     LIMIT $limit OFFSET $offset
@@ -144,12 +166,13 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $customers = $stmt->fetchAll();
 
-// Fetch Reps & Routes for dropdowns
+// Fetch Reps, Routes, and Territories for dropdowns
 $reps = [];
 if (hasRole(['admin', 'supervisor'])) {
     $reps = $pdo->query("SELECT id, name FROM users WHERE role = 'rep' ORDER BY name ASC")->fetchAll();
 }
 $routes = $pdo->query("SELECT id, name FROM routes ORDER BY name ASC")->fetchAll();
+$territories_list = $pdo->query("SELECT id, name FROM territories ORDER BY name ASC")->fetchAll();
 
 include '../includes/header.php';
 include '../includes/sidebar.php';
@@ -231,14 +254,23 @@ include '../includes/sidebar.php';
 <div class="dash-card mb-4" style="background: var(--ios-surface-2);">
     <div class="p-3">
         <form method="GET" action="" id="searchForm" class="row g-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-3">
                 <label class="ios-label-sm">Search Customers</label>
                 <div class="ios-search-wrapper">
                     <i class="bi bi-search"></i>
-                    <input type="text" name="search" class="ios-input" placeholder="Search by name, phone, or address..." value="<?php echo htmlspecialchars($search_query); ?>" oninput="debounceSearch()">
+                    <input type="text" name="search" class="ios-input" placeholder="Search name, phone, address..." value="<?php echo htmlspecialchars($search_query); ?>" oninput="debounceSearch()">
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <label class="ios-label-sm">Filter by Territory</label>
+                <select name="territory_id" class="form-select" onchange="document.getElementById('searchForm').submit();">
+                    <option value="">All Territories</option>
+                    <?php foreach($territories_list as $t): ?>
+                        <option value="<?php echo $t['id']; ?>" <?php echo $territory_filter == $t['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="ios-label-sm">Filter by Route</label>
                 <select name="route_id" class="form-select" onchange="document.getElementById('searchForm').submit();">
                     <option value="">All Routes</option>
@@ -248,9 +280,12 @@ include '../includes/sidebar.php';
                 </select>
             </div>
             <div class="col-md-3">
-                <button type="submit" class="quick-btn quick-btn-secondary w-100" style="min-height: 42px;">
-                    <i class="bi bi-funnel-fill"></i> Apply Filters
-                </button>
+                <label class="ios-label-sm">Filter by Balance</label>
+                <select name="balance_status" class="form-select" onchange="document.getElementById('searchForm').submit();">
+                    <option value="">All Balances</option>
+                    <option value="outstanding" <?php echo $balance_filter == 'outstanding' ? 'selected' : ''; ?>>Outstanding Customers</option>
+                    <option value="cleared" <?php echo $balance_filter == 'cleared' ? 'selected' : ''; ?>>Cleared Customers</option>
+                </select>
             </div>
         </form>
     </div>
@@ -262,13 +297,14 @@ include '../includes/sidebar.php';
         <table class="ios-table">
             <thead>
                 <tr class="table-ios-header">
-                    <th style="width: 30%;">Business / Owner</th>
-                    <th style="width: 25%;">Contact Info</th>
-                    <th style="width: 20%;">Location / Route</th>
+                    <th style="width: <?php echo hasRole(['admin', 'supervisor']) ? '25%' : '30%'; ?>;">Business / Owner</th>
+                    <th style="width: <?php echo hasRole(['admin', 'supervisor']) ? '20%' : '22%'; ?>;">Contact Info</th>
+                    <th style="width: <?php echo hasRole(['admin', 'supervisor']) ? '20%' : '22%'; ?>;">Location / Route</th>
+                    <th style="width: <?php echo hasRole(['admin', 'supervisor']) ? '15%' : '16%'; ?>;">Outstanding Balance</th>
                     <?php if(hasRole(['admin', 'supervisor'])): ?>
-                        <th style="width: 15%;">Assigned Rep</th>
+                        <th style="width: 12%;">Assigned Rep</th>
                     <?php endif; ?>
-                    <th style="width: 10%; text-align: right;">Actions</th>
+                    <th style="width: <?php echo hasRole(['admin', 'supervisor']) ? '8%' : '10%'; ?>; text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -288,7 +324,9 @@ include '../includes/sidebar.php';
                             </div>
                             <div>
                                 <div style="font-weight: 700; font-size: 0.95rem; color: var(--ios-label);">
-                                    <?php echo htmlspecialchars($c['name']); ?>
+                                    <a href="view_customer.php?id=<?php echo $c['id']; ?>" class="text-primary text-decoration-none fw-bold" title="View Profile">
+                                        <?php echo htmlspecialchars($c['name']); ?>
+                                    </a>
                                 </div>
                                 <div style="font-size: 0.75rem; color: var(--ios-label-2); margin-top: 2px;">
                                     <?php echo htmlspecialchars($c['owner_name'] ?: 'Business Account'); ?>
@@ -323,9 +361,28 @@ include '../includes/sidebar.php';
                         <span class="ios-badge gray outline mb-1">
                             <i class="bi bi-signpost-split-fill me-1"></i> <?php echo htmlspecialchars($c['route_name'] ?: 'No Route'); ?>
                         </span>
+                        <?php if($c['territory_name']): ?>
+                            <span class="ios-badge blue outline mb-1" style="font-size: 0.68rem; padding: 2px 6px;">
+                                <i class="bi bi-map-fill me-1"></i> <?php echo htmlspecialchars($c['territory_name']); ?>
+                            </span>
+                        <?php endif; ?>
                         <div style="font-size: 0.75rem; color: var(--ios-label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;">
                             <?php echo htmlspecialchars($c['address'] ?: 'No address provided'); ?>
                         </div>
+                    </td>
+                    <td>
+                        <?php 
+                        $bal = (float)$c['outstanding_balance'];
+                        if ($bal > 0): 
+                        ?>
+                            <div style="font-size: 0.95rem; font-weight: 700; color: #CC2200;">
+                                Rs <?php echo number_format($bal, 2); ?>
+                            </div>
+                        <?php else: ?>
+                            <span class="ios-badge green">
+                                <i class="bi bi-check-circle-fill"></i> Cleared
+                            </span>
+                        <?php endif; ?>
                     </td>
                     
                     <?php if(hasRole(['admin', 'supervisor'])): ?>
@@ -380,7 +437,7 @@ include '../includes/sidebar.php';
 <ul class="ios-pagination mb-4">
     <?php for($i = 1; $i <= $totalPages; $i++): ?>
     <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
-        <a class="page-link" href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search_query); ?>&route_id=<?php echo $route_filter; ?>"><?php echo $i; ?></a>
+        <a class="page-link" href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search_query); ?>&route_id=<?php echo $route_filter; ?>&territory_id=<?php echo $territory_filter; ?>&balance_status=<?php echo $balance_filter; ?>"><?php echo $i; ?></a>
     </li>
     <?php endfor; ?>
 </ul>
