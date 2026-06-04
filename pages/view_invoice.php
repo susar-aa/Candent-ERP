@@ -80,16 +80,16 @@ if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
     foreach ($items as $item) {
         $gross   = $item['quantity'] * $item['price'];
         $net     = $gross - $item['discount'];
-        $sku_h   = !empty($item['sku']) ? "<br><span style='font-size:10px;color:#888;'>SKU: ".htmlspecialchars($item['sku'])."</span>" : '';
+        $sku_h   = !empty($item['sku']) ? "<br><span style='font-size:8px;color:#888;'>SKU: ".htmlspecialchars($item['sku'])."</span>" : '';
         $bg      = ($counter % 2 == 0) ? "background:#F9FAFB;" : "background:#FFFFFF;";
         $items_html .= "
         <tr style='{$bg}'>
-            <td style='text-align:center;padding:12px 10px;color:#888;border-bottom:1px solid #EEE;'>".str_pad($counter++, 2, '0', STR_PAD_LEFT)."</td>
-            <td style='padding:12px 10px;border-bottom:1px solid #EEE;'><strong style='color:#111;font-size:13px;'>".htmlspecialchars($item['product_name'])."</strong>{$sku_h}</td>
-            <td style='text-align:center;font-weight:700;padding:12px 10px;border-bottom:1px solid #EEE;'>{$item['quantity']}</td>
-            <td style='text-align:right;padding:12px 10px;border-bottom:1px solid #EEE;'>".number_format($item['price'],2)."</td>
-            <td style='text-align:right;padding:12px 10px;border-bottom:1px solid #EEE; color:#999;'>".($item['discount'] > 0 ? number_format($item['discount'],2) : '—')."</td>
-            <td style='text-align:right;font-weight:700;padding:12px 10px;border-bottom:1px solid #EEE;'>".number_format($net,2)."</td>
+            <td style='text-align:center;padding:6px 8px;color:#888;border-bottom:1px solid #EEE;font-size:10px;'>".str_pad($counter++, 2, '0', STR_PAD_LEFT)."</td>
+            <td style='padding:6px 8px;border-bottom:1px solid #EEE;'><strong style='color:#111;font-size:11px;'>".htmlspecialchars($item['product_name'])."</strong>{$sku_h}</td>
+            <td style='text-align:center;font-weight:700;padding:6px 8px;border-bottom:1px solid #EEE;font-size:10px;'>{$item['quantity']}</td>
+            <td style='text-align:right;padding:6px 8px;border-bottom:1px solid #EEE;font-size:10px;'>".number_format($item['price'],2)."</td>
+            <td style='text-align:right;padding:6px 8px;border-bottom:1px solid #EEE; color:#999;font-size:10px;'>".($item['discount'] > 0 ? number_format($item['discount'],2) : '—')."</td>
+            <td style='text-align:right;font-weight:700;padding:6px 8px;border-bottom:1px solid #EEE;font-size:10px;'>".number_format($net,2)."</td>
         </tr>";
     }
 
@@ -103,33 +103,33 @@ if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
 <meta charset='UTF-8'>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 11px; color: #333; background: #fff; padding: 40px 50px; }
+  body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10px; color: #333; background: #fff; padding: 20px 30px; }
   table { border-collapse: collapse; width: 100%; }
   .header-table td { vertical-align: top; }
-  .brand-logo { height: 45px; margin-bottom: 10px; }
-  .company-info strong { font-size: 18px; color: #000; display: block; margin-bottom: 2px; }
-  .company-info p { color: #666; line-height: 1.5; margin: 0; }
-  .inv-title { font-size: 32px; font-weight: 200; letter-spacing: 5px; color: #000; margin-bottom: 15px; text-transform: uppercase; }
+  .brand-logo { height: 35px; margin-bottom: 6px; }
+  .company-info strong { font-size: 14px; color: #000; display: block; margin-bottom: 2px; }
+  .company-info p { color: #666; line-height: 1.3; margin: 0; font-size: 9px; }
+  .inv-title { font-size: 22px; font-weight: 200; letter-spacing: 4px; color: #000; margin-bottom: 10px; text-transform: uppercase; }
   .meta-table { width: auto; }
-  .meta-table td { padding: 3px 0; }
-  .meta-table .k { color: #999; padding-right: 20px; }
-  .meta-table .v { font-weight: 700; color: #000; }
-  .status-badge { font-size: 9px; font-weight: 700; border: 1.5px solid {$pdfStatusBrd}; color: {$pdfStatusCol}; padding: 1px 6px; border-radius: 3px; }
-  .divider { border: none; border-top: 2px solid #000; margin: 25px 0; }
+  .meta-table td { padding: 2px 0; }
+  .meta-table .k { color: #999; padding-right: 15px; font-size: 9px; }
+  .meta-table .v { font-weight: 700; color: #000; font-size: 9px; }
+  .status-badge { font-size: 8px; font-weight: 700; border: 1px solid {$pdfStatusBrd}; color: {$pdfStatusCol}; padding: 1px 4px; border-radius: 2px; }
+  .divider { border: none; border-top: 1.5px solid #000; margin: 15px 0; }
   .info-grid td { vertical-align: top; width: 50%; }
-  .label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: #999; letter-spacing: 1px; margin-bottom: 5px; }
-  .info-content h3 { font-size: 14px; margin-bottom: 4px; color: #000; }
-  .info-content p { color: #555; line-height: 1.5; }
-  .items-table th { background: #F9FAFB; padding: 10px; font-size: 9px; text-transform: uppercase; color: #666; border-bottom: 1px solid #000; text-align: left; }
-  .items-table td { padding: 10px; font-size: 11px; }
-  .totals-table { width: 250px; margin-left: auto; margin-top: 20px; }
-  .totals-table td { padding: 5px 0; }
+  .label { font-size: 8px; text-transform: uppercase; font-weight: 700; color: #999; letter-spacing: 1px; margin-bottom: 3px; }
+  .info-content h3 { font-size: 11px; margin-bottom: 2px; color: #000; }
+  .info-content p { color: #555; line-height: 1.3; font-size: 9px; }
+  .items-table th { background: #F9FAFB; padding: 6px 8px; font-size: 8.5px; text-transform: uppercase; color: #666; border-bottom: 1.5px solid #000; text-align: left; }
+  .items-table td { padding: 6px 8px; font-size: 9.5px; }
+  .totals-table { width: 220px; margin-left: auto; margin-top: 15px; }
+  .totals-table td { padding: 3px 0; font-size: 9.5px; }
   .totals-table .val { text-align: right; font-weight: 700; }
-  .grand-total { border-top: 2px solid #000; border-bottom: 1px solid #EEE; font-size: 13px; font-weight: 700; }
-  .grand-total td { padding: 10px 0; }
-  .terms { font-size: 10px; color: #777; line-height: 1.6; margin-top: 30px; }
-  .sig-block { margin-top: 50px; border-top: 1px solid #DDD; width: 200px; text-align: center; padding-top: 8px; color: #999; font-size: 10px; }
-  .footer { text-align: center; margin-top: 60px; color: #AAA; font-size: 9px; }
+  .grand-total { border-top: 1.5px solid #000; border-bottom: 1px solid #EEE; font-size: 11px; font-weight: 700; }
+  .grand-total td { padding: 6px 0; }
+  .terms { font-size: 9px; color: #777; line-height: 1.4; margin-top: 15px; }
+  .sig-block { margin-top: 25px; border-top: 1px solid #DDD; width: 150px; text-align: center; padding-top: 4px; color: #999; font-size: 9px; }
+  .footer { text-align: center; margin-top: 30px; color: #AAA; font-size: 8px; }
 </style>
 </head>
 <body>
@@ -174,15 +174,15 @@ if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
     </tr>
   </table>
 
-  <table class='items-table' style='margin-top:30px;'>
+  <table class='items-table' style='margin-top:20px;'>
     <thead>
       <tr>
         <th style='width:30px;text-align:center;'>#</th>
         <th>Description</th>
-        <th style='width:50px;text-align:center;'>Qty</th>
-        <th style='width:80px;text-align:right;'>Price</th>
-        <th style='width:70px;text-align:right;'>Disc</th>
-        <th style='width:90px;text-align:right;'>Amount</th>
+        <th style='width:40px;text-align:center;'>Qty</th>
+        <th style='width:70px;text-align:right;'>Price</th>
+        <th style='width:60px;text-align:right;'>Disc</th>
+        <th style='width:85px;text-align:right;'>Amount</th>
       </tr>
     </thead>
     <tbody>{$items_html}</tbody>
@@ -193,7 +193,7 @@ if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
     ".($order['discount_amount'] > 0 ? "<tr><td style='color:#CC2200;'>Bill Discount</td><td class='val' style='color:#CC2200;'>- ".number_format($order['discount_amount'], 2)."</td></tr>" : "")."
     <tr class='grand-total'><td>Amount Due</td><td class='val'>Rs ".number_format($order['total_amount'], 2)."</td></tr>
     <tr><td style='padding-top:10px; color:#666;'>Paid</td><td class='val' style='padding-top:10px;'>Rs ".number_format($paidAmount, 2)."</td></tr>
-    <tr><td style='font-weight:700; color:{$bal_color};'>{$bal_label}</td><td class='val' style='font-weight:700; color:{$bal_color}; font-size:14px;'>Rs ".number_format(abs($balance), 2)."</td></tr>
+    <tr><td style='font-weight:700; color:{$bal_color};'>{$bal_label}</td><td class='val' style='font-weight:700; color:{$bal_color}; font-size:12px;'>Rs ".number_format(abs($balance), 2)."</td></tr>
   </table>
 
   <div class='terms'>
