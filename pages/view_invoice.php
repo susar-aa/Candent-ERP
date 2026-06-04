@@ -49,6 +49,22 @@ if ($order['payment_status'] == 'paid') {
     $statusText = 'PARTIAL';
 }
 
+$cust_outstanding = 0;
+$cust_total_paid = 0;
+if (isset($_GET['print_outstanding']) && $_GET['print_outstanding'] == 1) {
+    $custMetricsStmt = $pdo->prepare("
+        SELECT 
+            SUM(paid_amount) as total_paid,
+            SUM(total_amount - paid_amount) as outstanding_balance
+        FROM orders 
+        WHERE customer_id = ?
+    ");
+    $custMetricsStmt->execute([$order['customer_id']]);
+    $custMetrics = $custMetricsStmt->fetch();
+    $cust_outstanding = (float)($custMetrics['outstanding_balance'] ?? 0);
+    $cust_total_paid = (float)($custMetrics['total_paid'] ?? 0);
+}
+
 // ─── SERVER-SIDE PDF (DomPDF) ──────────────────────────────────────────────
 if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
     require_once '../vendor/autoload.php';
@@ -194,6 +210,11 @@ if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
     <tr class='grand-total'><td>Amount Due</td><td class='val'>Rs ".number_format($order['total_amount'], 2)."</td></tr>
     <tr><td style='padding-top:10px; color:#666;'>Paid</td><td class='val' style='padding-top:10px;'>Rs ".number_format($paidAmount, 2)."</td></tr>
     <tr><td style='font-weight:700; color:{$bal_color};'>{$bal_label}</td><td class='val' style='font-weight:700; color:{$bal_color}; font-size:12px;'>Rs ".number_format(abs($balance), 2)."</td></tr>
+    ".(isset($_GET['print_outstanding']) && $_GET['print_outstanding'] == 1 ? "
+    <tr style='border-top:1px dashed #DDD;'><td colspan='2' style='height:4px;'></td></tr>
+    <tr><td style='color:#555;'>Cust. Total Paid</td><td class='val' style='color:#1A9A3A;'>Rs ".number_format($cust_total_paid, 2)."</td></tr>
+    <tr><td style='color:#555;'>Cust. Outstanding</td><td class='val' style='color:#CC2200;'>Rs ".number_format($cust_outstanding, 2)."</td></tr>
+    " : "")."
   </table>
 
   <div class='terms'>
@@ -501,9 +522,13 @@ $bal_label = $balance < 0 ? 'Change Due' : 'Balance Due';
           <tr><td style="color: var(--red);">Bill Discount</td><td class="val" style="color: var(--red);">- <?= number_format($order['discount_amount'], 2) ?></td></tr>
           <?php endif; ?>
           <tr class="grand-total"><td>Amount Due</td><td class="val">Rs <?= number_format($order['total_amount'], 2) ?></td></tr>
-          <tr><td colspan="2" style="height: 10px;"></td></tr>
           <tr><td style="color: var(--ink-3);">Paid</td><td class="val" style="color: var(--ink-2);">Rs <?= number_format($paidAmount, 2) ?></td></tr>
-          <tr><td style="font-weight: 700; color: <?= $bal_color ?>;"><?= $bal_label ?></td><td class="val" style="font-weight: 800; color: <?= $bal_color ?>; font-size: 17px;">Rs <?= number_format(abs($balance), 2) ?></td></tr>
+          <tr><td style="font-weight: 700; color: <?= $bal_color ?>;"><?= $bal_label ?></td><td class="val" style="font-weight: 800; color: <?= $bal_color ?>; font-size: 14px;">Rs <?= number_format(abs($balance), 2) ?></td></tr>
+          <?php if (isset($_GET['print_outstanding']) && $_GET['print_outstanding'] == 1): ?>
+          <tr style="border-top: 1px dashed var(--border);"><td colspan="2" style="height: 4px;"></td></tr>
+          <tr><td style="color: var(--ink-2); font-weight: 600;">Cust. Total Paid</td><td class="val" style="color: var(--green);">Rs <?= number_format($cust_total_paid, 2) ?></td></tr>
+          <tr><td style="color: var(--ink-2); font-weight: 600;">Cust. Outstanding</td><td class="val" style="color: var(--red);">Rs <?= number_format($cust_outstanding, 2) ?></td></tr>
+          <?php endif; ?>
         </table>
       </div>
     </div>

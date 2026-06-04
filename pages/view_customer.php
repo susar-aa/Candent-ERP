@@ -243,6 +243,17 @@ $metrics = $metricsStmt->fetch();
 
 $outstanding_balance = $metrics['outstanding_balance'] ?: 0;
 
+// Fetch Latest Invoice ID
+$latestInvoiceStmt = $pdo->prepare("
+    SELECT id 
+    FROM orders 
+    WHERE customer_id = ? AND payment_method != 'Credit Note'
+    ORDER BY created_at DESC 
+    LIMIT 1
+");
+$latestInvoiceStmt->execute([$customer_id]);
+$latest_invoice_id = $latestInvoiceStmt->fetchColumn();
+
 // Fetch Recent Orders (Limit 15)
 $ordersStmt = $pdo->prepare("
     SELECT o.*, ch.status as cheque_status 
@@ -599,6 +610,9 @@ $avatar_color = $colors[$customer['id'] % count($colors)];
                         <?php endif; ?>
                         <?php if($customer['email']): ?>
                             <a href="mailto:<?php echo htmlspecialchars($customer['email']); ?>" class="btn-sm-outline"><i class="bi bi-envelope text-danger"></i> Email</a>
+                        <?php endif; ?>
+                        <?php if ($latest_invoice_id): ?>
+                            <a href="view_invoice.php?id=<?= $latest_invoice_id ?>&print_outstanding=1" target="_blank" class="btn-sm-outline"><i class="bi bi-printer text-info"></i> Print Latest Invoice</a>
                         <?php endif; ?>
                     </div>
 
