@@ -266,7 +266,7 @@ $bal_label = $balance < 0 ? 'Change Due' : 'Balance Due';
       font-family: var(--sans); 
       background: var(--bg); 
       color: var(--ink-2); 
-      line-height: 1.5; 
+      line-height: 1.4; 
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -325,58 +325,58 @@ $bal_label = $balance < 0 ? 'Change Due' : 'Balance Due';
       box-shadow: 0 10px 40px rgba(0,0,0,0.1);
       position: relative;
     }
-    .invoice-body { padding: 40px 50px; }
+    .invoice-body { padding: 25px 35px; }
 
     /* ── HEADER ── */
-    .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
-    .brand-logo { height: 60px; margin-bottom: 12px; }
-    .company-info strong { font-size: 24px; font-weight: 800; color: var(--ink); display: block; }
-    .company-info p { font-size: 13px; color: var(--ink-2); }
+    .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+    .brand-logo { height: 42px; margin-bottom: 6px; }
+    .company-info strong { font-size: 18px; font-weight: 800; color: var(--ink); display: block; }
+    .company-info p { font-size: 11px; color: var(--ink-2); line-height: 1.3; }
 
     .inv-title-block { text-align: right; }
-    .inv-title { font-size: 42px; font-weight: 200; letter-spacing: 6px; margin-bottom: 15px; color: var(--ink); }
-    .meta-grid { display: grid; grid-template-columns: auto auto; gap: 6px 25px; font-size: 14px; justify-content: flex-end; }
+    .inv-title { font-size: 28px; font-weight: 300; letter-spacing: 4px; margin-bottom: 8px; color: var(--ink); }
+    .meta-grid { display: grid; grid-template-columns: auto auto; gap: 4px 15px; font-size: 12px; justify-content: flex-end; }
     .meta-grid .k { color: var(--ink-3); text-align: right; }
     .meta-grid .v { font-weight: 700; text-align: right; color: var(--ink); }
 
     .status-badge {
-      display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
-      padding: 2px 10px; border-radius: 4px; border: 1.5px solid currentColor;
+      display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 1.5px 8px; border-radius: 3px; border: 1.5px solid currentColor;
     }
     .badge-paid { color: var(--green); }
     .badge-partial { color: var(--blue); }
     .badge-pending { color: var(--ink-3); }
 
-    .hdivider { border: 0; border-top: 2px solid var(--ink); margin: 30px 0; }
+    .hdivider { border: 0; border-top: 1.5px solid var(--ink); margin: 15px 0; }
 
     /* ── BILLING ── */
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; margin-bottom: 40px; }
-    .label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: var(--ink-3); letter-spacing: 1.5px; margin-bottom: 10px; }
-    .info-content h3 { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
-    .info-content p { font-size: 14px; color: var(--ink-2); }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 20px; }
+    .label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: var(--ink-3); letter-spacing: 1.2px; margin-bottom: 4px; }
+    .info-content h3 { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    .info-content p { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; }
     .info-right { text-align: right; }
     .info-right .meta-grid { justify-content: flex-end; }
 
     /* ── TABLE ── */
-    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
-    .items-table th { background: #F9FAFB; padding: 14px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--ink-2); border-bottom: 1.5px solid var(--ink); text-align: left; }
-    .items-table td { padding: 15px 14px; border-bottom: 1px solid var(--border); }
-    .product-name { font-weight: 600; color: var(--ink); display: block; margin-bottom: 3px; }
-    .product-sku { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
+    .items-table th { background: #F9FAFB; padding: 6px 8px; font-size: 10px; text-transform: uppercase; font-weight: 700; color: var(--ink-2); border-bottom: 1.5px solid var(--ink); text-align: left; }
+    .items-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .product-name { font-weight: 600; color: var(--ink); display: block; margin-bottom: 1px; font-size: 12px; }
+    .product-sku { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
 
     /* ── FOOTER ── */
-    .footer-grid { display: grid; grid-template-columns: 1fr 300px; gap: 50px; align-items: start; }
-    .terms-text { font-size: 13px; color: var(--ink-3); line-height: 1.8; }
-    .sig-block { margin-top: 60px; border-top: 1px solid var(--border); padding-top: 10px; width: 220px; text-align: center; font-size: 12px; color: var(--ink-3); }
+    .footer-grid { display: grid; grid-template-columns: 1fr 280px; gap: 30px; align-items: start; }
+    .terms-text { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+    .sig-block { margin-top: 25px; border-top: 1px solid var(--border); padding-top: 6px; width: 180px; text-align: center; font-size: 11px; color: var(--ink-3); }
 
     .totals-table { width: 100%; }
-    .totals-table td { padding: 8px 0; font-size: 14px; }
+    .totals-table td { padding: 4px 0; font-size: 12px; }
     .totals-table .val { font-family: var(--mono); text-align: right; font-weight: 700; color: var(--ink); }
-    .grand-total { border-top: 2.5px solid var(--ink); border-bottom: 1px solid var(--border); }
-    .grand-total td { padding: 15px 0; font-size: 16px; font-weight: 800; color: var(--ink); }
+    .grand-total { border-top: 2px solid var(--ink); border-bottom: 1px solid var(--border); }
+    .grand-total td { padding: 8px 0; font-size: 14px; font-weight: 800; color: var(--ink); }
 
-    .branding-footer { margin-top: 80px; padding-top: 30px; border-top: 1px solid var(--border); text-align: center; }
-    .branding-footer p { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 2px; }
+    .branding-footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid var(--border); text-align: center; }
+    .branding-footer p { font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 1.5px; }
 
     @media print {
       body { background: #fff; padding: 0; }
@@ -465,12 +465,12 @@ $bal_label = $balance < 0 ? 'Change Due' : 'Balance Due';
     <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 50px; text-align: center;">#</th>
+          <th style="width: 30px; text-align: center;">#</th>
           <th>Description</th>
-          <th style="width: 60px; text-align: center;">Qty</th>
-          <th style="width: 100px; text-align: right;">Price</th>
-          <th style="width: 80px; text-align: right;">Disc</th>
-          <th style="width: 110px; text-align: right;">Amount</th>
+          <th style="width: 40px; text-align: center;">Qty</th>
+          <th style="width: 75px; text-align: right;">Price</th>
+          <th style="width: 60px; text-align: right;">Disc</th>
+          <th style="width: 90px; text-align: right;">Amount</th>
         </tr>
       </thead>
       <tbody>
