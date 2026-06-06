@@ -17,67 +17,145 @@ $limit = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $limit;
 
-$whereClause = "WHERE DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?";
-$params = [$date_from, $date_to];
+// Subqueries use date range parameters twice (once for sales, once for returns)
+$subquery_params = [$date_from, $date_to, $date_from, $date_to];
+
+$outer_where = "";
+$outer_params = [];
 
 if ($search_query !== '') {
-    // Use COALESCE so it accurately finds products without a category assigned
-    $whereClause .= " AND COALESCE(c.name, 'Uncategorized') LIKE ?";
-    $params[] = "%$search_query%";
+    $outer_where .= " AND cat.category_name LIKE ?";
+    $outer_params[] = "%$search_query%";
 }
+
+$queryParams = array_merge($subquery_params, $outer_params);
 
 // --- FETCH ALL CATEGORIES FOR DROPDOWN ---
 $allCategoriesList = $pdo->query("SELECT name FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // --- FETCH TOTALS FOR PAGINATION & GRAND ROW ---
 $countQuery = "
-    SELECT COUNT(DISTINCT COALESCE(c.id, 0)) 
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.id
-    JOIN products p ON oi.product_id = p.id
-    LEFT JOIN categories c ON p.category_id = c.id
-    $whereClause
+    SELECT COUNT(DISTINCT COALESCE(cat.id, 0)) 
+    FROM (
+        SELECT id, name as category_name FROM categories
+        UNION ALL
+        SELECT NULL as id, 'Uncategorized' as category_name
+    ) cat
+    LEFT JOIN (
+        SELECT p.category_id, SUM(oi.quantity) as total_qty
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN products p ON oi.product_id = p.id
+        WHERE DATE(o.created_at) >= ? AND DATE(o.created_at) <= ? AND o.order_status != 'cancelled'
+        GROUP BY p.category_id
+    ) sales ON (cat.id = sales.category_id OR (cat.id IS NULL AND sales.category_id IS NULL))
+    LEFT JOIN (
+        SELECT p.category_id, SUM(sri.quantity) as returned_qty
+        FROM sales_return_items sri
+        JOIN sales_returns sr ON sri.return_id = sr.id
+        JOIN products p ON sri.product_id = p.id
+        WHERE DATE(sr.created_at) >= ? AND DATE(sr.created_at) <= ?
+        GROUP BY p.category_id
+    ) returns ON (cat.id = returns.category_id OR (cat.id IS NULL AND returns.category_id IS NULL))
+    WHERE (sales.total_qty IS NOT NULL OR returns.returned_qty IS NOT NULL)
+    $outer_where
 ";
 $totalStmt = $pdo->prepare($countQuery);
-$totalStmt->execute($params);
+$totalStmt->execute($queryParams);
 $totalRows = $totalStmt->fetchColumn();
 $totalPages = ceil($totalRows / $limit);
 
 $grandQuery = "
     SELECT 
-        SUM(oi.quantity) as grand_qty,
-        SUM(oi.quantity * oi.price) as grand_gross,
-        SUM(oi.discount) as grand_discount,
-        SUM((oi.quantity * oi.price) - oi.discount) as grand_net
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.id
-    JOIN products p ON oi.product_id = p.id
-    LEFT JOIN categories c ON p.category_id = c.id
-    $whereClause
+        SUM(COALESCE(sales.total_qty, 0)) as grand_qty,
+        SUM(COALESCE(returns.returned_qty, 0)) as grand_returned_qty,
+        SUM(COALESCE(sales.total_qty, 0) - COALESCE(returns.returned_qty, 0)) as grand_net_qty,
+        SUM(COALESCE(sales.gross_revenue, 0)) as grand_gross,
+        SUM(COALESCE(sales.total_discount, 0)) as grand_discount,
+        SUM(COALESCE(returns.returned_val, 0)) as grand_returned_val,
+        SUM(COALESCE(sales.gross_revenue, 0) - COALESCE(sales.total_discount, 0) - COALESCE(returns.returned_val, 0)) as grand_net
+    FROM (
+        SELECT id, name as category_name FROM categories
+        UNION ALL
+        SELECT NULL as id, 'Uncategorized' as category_name
+    ) cat
+    LEFT JOIN (
+        SELECT 
+            p.category_id,
+            SUM(oi.quantity) as total_qty,
+            SUM(oi.quantity * oi.price) as gross_revenue,
+            SUM(oi.discount) as total_discount
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN products p ON oi.product_id = p.id
+        WHERE DATE(o.created_at) >= ? AND DATE(o.created_at) <= ? AND o.order_status != 'cancelled'
+        GROUP BY p.category_id
+    ) sales ON (cat.id = sales.category_id OR (cat.id IS NULL AND sales.category_id IS NULL))
+    LEFT JOIN (
+        SELECT 
+            p.category_id,
+            SUM(sri.quantity) as returned_qty,
+            SUM(sri.quantity * sri.unit_price) as returned_val
+        FROM sales_return_items sri
+        JOIN sales_returns sr ON sri.return_id = sr.id
+        JOIN products p ON sri.product_id = p.id
+        WHERE DATE(sr.created_at) >= ? AND DATE(sr.created_at) <= ?
+        GROUP BY p.category_id
+    ) returns ON (cat.id = returns.category_id OR (cat.id IS NULL AND returns.category_id IS NULL))
+    WHERE (sales.total_qty IS NOT NULL OR returns.returned_qty IS NOT NULL)
+    $outer_where
 ";
 $grandStmt = $pdo->prepare($grandQuery);
-$grandStmt->execute($params);
+$grandStmt->execute($queryParams);
 $grandTotals = $grandStmt->fetch();
 
 // --- FETCH PAGINATED DATA ---
 $query = "
     SELECT 
-        COALESCE(c.name, 'Uncategorized') as category_name,
-        SUM(oi.quantity) as total_qty,
-        SUM(oi.quantity * oi.price) as gross_revenue,
-        SUM(oi.discount) as total_discount,
-        SUM((oi.quantity * oi.price) - oi.discount) as net_revenue
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.id
-    JOIN products p ON oi.product_id = p.id
-    LEFT JOIN categories c ON p.category_id = c.id
-    $whereClause
-    GROUP BY c.id, c.name
+        cat.id as category_id,
+        cat.category_name,
+        COALESCE(sales.total_qty, 0) as total_sold_qty,
+        COALESCE(sales.gross_revenue, 0) as gross_revenue,
+        COALESCE(sales.total_discount, 0) as total_discount,
+        COALESCE(returns.returned_qty, 0) as returned_qty,
+        COALESCE(returns.returned_val, 0) as returned_val,
+        (COALESCE(sales.total_qty, 0) - COALESCE(returns.returned_qty, 0)) as net_qty,
+        (COALESCE(sales.gross_revenue, 0) - COALESCE(sales.total_discount, 0) - COALESCE(returns.returned_val, 0)) as net_revenue
+    FROM (
+        SELECT id, name as category_name FROM categories
+        UNION ALL
+        SELECT NULL as id, 'Uncategorized' as category_name
+    ) cat
+    LEFT JOIN (
+        SELECT 
+            p.category_id,
+            SUM(oi.quantity) as total_qty,
+            SUM(oi.quantity * oi.price) as gross_revenue,
+            SUM(oi.discount) as total_discount
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN products p ON oi.product_id = p.id
+        WHERE DATE(o.created_at) >= ? AND DATE(o.created_at) <= ? AND o.order_status != 'cancelled'
+        GROUP BY p.category_id
+    ) sales ON (cat.id = sales.category_id OR (cat.id IS NULL AND sales.category_id IS NULL))
+    LEFT JOIN (
+        SELECT 
+            p.category_id,
+            SUM(sri.quantity) as returned_qty,
+            SUM(sri.quantity * sri.unit_price) as returned_val
+        FROM sales_return_items sri
+        JOIN sales_returns sr ON sri.return_id = sr.id
+        JOIN products p ON sri.product_id = p.id
+        WHERE DATE(sr.created_at) >= ? AND DATE(sr.created_at) <= ?
+        GROUP BY p.category_id
+    ) returns ON (cat.id = returns.category_id OR (cat.id IS NULL AND returns.category_id IS NULL))
+    WHERE (sales.total_qty IS NOT NULL OR returns.returned_qty IS NOT NULL)
+    $outer_where
     ORDER BY net_revenue DESC
     LIMIT $limit OFFSET $offset
 ";
 $stmt = $pdo->prepare($query);
-$stmt->execute($params);
+$stmt->execute($queryParams);
 $reportData = $stmt->fetchAll();
 
 include '../includes/header.php';
@@ -248,42 +326,52 @@ include '../includes/sidebar.php';
 <!-- Primary KPIs (Extracted from Grand Totals) -->
 <div class="row g-3 mb-4">
     <!-- Gross Revenue -->
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md col-sm-6">
         <div class="metrics-card" style="background: linear-gradient(145deg, #007AFF, #0055CC);">
             <i class="bi bi-cash-stack metrics-bg-icon"></i>
             <div class="metrics-content">
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Total Gross Revenue</div>
-                <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_gross'] ?? 0, 2); ?></div>
-            </div>
-        </div>
-    </div>
-    <!-- Net Revenue -->
-    <div class="col-md-3 col-sm-6">
-        <div class="metrics-card" style="background: linear-gradient(145deg, #34C759, #30D158);">
-            <i class="bi bi-check-circle-fill metrics-bg-icon"></i>
-            <div class="metrics-content">
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Total Net Revenue</div>
-                <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_net'] ?? 0, 2); ?></div>
-            </div>
-        </div>
-    </div>
-    <!-- Units Sold -->
-    <div class="col-md-3 col-sm-6">
-        <div class="metrics-card" style="background: linear-gradient(145deg, #5856D6, #4543B0);">
-            <i class="bi bi-box-seam-fill metrics-bg-icon"></i>
-            <div class="metrics-content">
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Total Units Sold</div>
-                <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;"><?php echo number_format($grandTotals['grand_qty'] ?? 0); ?></div>
+                <div style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_gross'] ?? 0, 2); ?></div>
             </div>
         </div>
     </div>
     <!-- Discounts Given -->
-    <div class="col-md-3 col-sm-6">
-        <div class="metrics-card" style="background: linear-gradient(145deg, #FF3B30, #CC1500);">
+    <div class="col-md col-sm-6">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #5856D6, #4543B0);">
             <i class="bi bi-tags-fill metrics-bg-icon"></i>
             <div class="metrics-content">
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Total Discounts</div>
-                <div style="font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_discount'] ?? 0, 2); ?></div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Discounts Given</div>
+                <div style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_discount'] ?? 0, 2); ?></div>
+            </div>
+        </div>
+    </div>
+    <!-- Returned Value -->
+    <div class="col-md col-sm-6">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #FF3B30, #CC1500);">
+            <i class="bi bi-arrow-return-left metrics-bg-icon"></i>
+            <div class="metrics-content">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Returned Value</div>
+                <div style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_returned_val'] ?? 0, 2); ?></div>
+            </div>
+        </div>
+    </div>
+    <!-- Net Revenue -->
+    <div class="col-md col-sm-6">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #34C759, #30D158);">
+            <i class="bi bi-check-circle-fill metrics-bg-icon"></i>
+            <div class="metrics-content">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Total Net Revenue</div>
+                <div style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;">Rs <?php echo number_format($grandTotals['grand_net'] ?? 0, 2); ?></div>
+            </div>
+        </div>
+    </div>
+    <!-- Net Qty Sold -->
+    <div class="col-md col-sm-6">
+        <div class="metrics-card" style="background: linear-gradient(145deg, #FF9500, #E07800);">
+            <i class="bi bi-box-seam-fill metrics-bg-icon"></i>
+            <div class="metrics-content">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.8); margin-bottom: 2px;">Net Qty Sold</div>
+                <div style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;"><?php echo number_format($grandTotals['grand_net_qty'] ?? 0); ?> <span style="font-size: 0.72rem; opacity: 0.85; font-weight: 500;">(<?php echo number_format($grandTotals['grand_qty'] ?? 0); ?> gross, <?php echo number_format($grandTotals['grand_returned_qty'] ?? 0); ?> ret)</span></div>
             </div>
         </div>
     </div>
@@ -328,39 +416,51 @@ include '../includes/sidebar.php';
         <table class="ios-table">
             <thead>
                 <tr class="table-ios-header">
-                    <th style="width: 30%;" class="ps-4">Category Name</th>
-                    <th class="text-center" style="width: 15%;">Qty Sold</th>
-                    <th class="text-end" style="width: 20%;">Gross Revenue (Rs)</th>
-                    <th class="text-end" style="width: 15%; color: #CC2200 !important;">Discounts (Rs)</th>
-                    <th class="text-end pe-4" style="width: 20%; color: #1A9A3A !important;">Net Revenue (Rs)</th>
+                    <th style="width: 25%;" class="ps-4">Category Name</th>
+                    <th class="text-center" style="width: 20%;">Qty (Gross / Ret / Net)</th>
+                    <th class="text-end" style="width: 13%;">Gross Revenue</th>
+                    <th class="text-end" style="width: 13%; color: #CC2200 !important;">Discounts</th>
+                    <th class="text-end" style="width: 13%; color: #CC2200 !important;">Returned Value</th>
+                    <th class="text-end pe-4" style="width: 16%; color: #1A9A3A !important;">Net Revenue</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach($reportData as $row): ?>
                 <tr>
                     <td class="ps-4">
-                        <div style="font-weight: 700; font-size: 1.05rem; color: var(--ios-label);">
+                        <div style="font-weight: 700; font-size: 1rem; color: var(--ios-label);">
                             <i class="bi bi-tag-fill text-primary me-2"></i> <?php echo htmlspecialchars($row['category_name']); ?>
                         </div>
                     </td>
                     <td class="text-center">
-                        <span class="ios-badge blue px-3" style="font-size: 0.9rem;"><?php echo number_format($row['total_qty']); ?></span>
+                        <div class="d-flex flex-column align-items-center gap-1">
+                            <div class="d-flex gap-1">
+                                <span class="ios-badge blue" style="font-size: 0.7rem; padding: 2px 6px;" title="Gross Sold"><?php echo number_format($row['total_sold_qty']); ?> Sold</span>
+                                <?php if ($row['returned_qty'] > 0): ?>
+                                    <span class="ios-badge danger" style="font-size: 0.7rem; padding: 2px 6px;" title="Returned"><?php echo number_format($row['returned_qty']); ?> Ret</span>
+                                <?php endif; ?>
+                            </div>
+                            <span class="ios-badge green fw-bold" style="font-size: 0.75rem; padding: 2px 8px;" title="Net Qty"><?php echo number_format($row['net_qty']); ?> Net</span>
+                        </div>
                     </td>
                     <td class="text-end">
                         <span style="font-weight: 600; color: var(--ios-label-2);">Rs <?php echo number_format($row['gross_revenue'], 2); ?></span>
                     </td>
                     <td class="text-end">
-                        <span style="font-weight: 700; color: #CC2200;">- Rs <?php echo number_format($row['total_discount'], 2); ?></span>
+                        <span style="font-weight: 600; color: #CC2200;">- Rs <?php echo number_format($row['total_discount'], 2); ?></span>
+                    </td>
+                    <td class="text-end">
+                        <span style="font-weight: 600; color: #CC2200;"><?php echo $row['returned_val'] > 0 ? '- Rs ' . number_format($row['returned_val'], 2) : 'Rs 0.00'; ?></span>
                     </td>
                     <td class="text-end pe-4">
-                        <span style="font-weight: 800; font-size: 1.05rem; color: #1A9A3A;">Rs <?php echo number_format($row['net_revenue'], 2); ?></span>
+                        <span style="font-weight: 800; font-size: 1rem; color: #1A9A3A;">Rs <?php echo number_format($row['net_revenue'], 2); ?></span>
                     </td>
                 </tr>
                 <?php endforeach; ?>
                 
                 <?php if(empty($reportData)): ?>
                 <tr>
-                    <td colspan="5" class="text-center py-5 text-muted">
+                    <td colspan="6" class="text-center py-5 text-muted">
                         <div class="empty-state">
                             <i class="bi bi-tags" style="font-size: 2.5rem; color: var(--ios-label-4);"></i>
                             <p class="mt-2" style="font-weight: 500;">No sales data found for the selected period.</p>
@@ -374,9 +474,18 @@ include '../includes/sidebar.php';
             <tfoot style="background: var(--ios-surface-2); border-top: 2px solid var(--ios-label);">
                 <tr>
                     <td class="text-end text-uppercase fw-bold ps-4" style="color: var(--ios-label-2); font-size: 0.8rem;">Grand Totals:</td>
-                    <td class="text-center fw-bold" style="color: #0055CC; font-size: 1.05rem;"><?php echo number_format($grandTotals['grand_qty'] ?? 0); ?></td>
+                    <td class="text-center">
+                        <div class="d-flex flex-column align-items-center gap-1 fw-bold">
+                            <div class="d-flex gap-1" style="font-size: 0.75rem;">
+                                <span style="color: #0055CC;">Gross: <?php echo number_format($grandTotals['grand_qty'] ?? 0); ?></span>
+                                <span style="color: #CC2200;">Ret: <?php echo number_format($grandTotals['grand_returned_qty'] ?? 0); ?></span>
+                            </div>
+                            <span style="color: #1A9A3A; font-size: 0.85rem;">Net: <?php echo number_format($grandTotals['grand_net_qty'] ?? 0); ?></span>
+                        </div>
+                    </td>
                     <td class="text-end fw-bold" style="color: var(--ios-label);">Rs <?php echo number_format($grandTotals['grand_gross'] ?? 0, 2); ?></td>
                     <td class="text-end fw-bold text-danger">- Rs <?php echo number_format($grandTotals['grand_discount'] ?? 0, 2); ?></td>
+                    <td class="text-end fw-bold text-danger">- Rs <?php echo number_format($grandTotals['grand_returned_val'] ?? 0, 2); ?></td>
                     <td class="text-end fw-bold text-success pe-4 fs-5">Rs <?php echo number_format($grandTotals['grand_net'] ?? 0, 2); ?></td>
                 </tr>
             </tfoot>
