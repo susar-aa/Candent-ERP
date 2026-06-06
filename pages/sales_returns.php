@@ -29,6 +29,8 @@ try {
         condition_status ENUM('good', 'damaged', 'expired') DEFAULT 'good',
         FOREIGN KEY (return_id) REFERENCES sales_returns(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+} catch (Exception $e) {}
+
 // --- SELF-HEALING MIGRATION FOR CREDIT NOTES ---
 try {
     $cnStmt = $pdo->query("SELECT id, customer_id, paid_amount FROM orders WHERE payment_method = 'Credit Note' AND paid_amount > 0");
