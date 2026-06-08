@@ -258,12 +258,12 @@ include '../includes/sidebar.php';
                 <label class="ios-label-sm">Search Customers</label>
                 <div class="ios-search-wrapper">
                     <i class="bi bi-search"></i>
-                    <input type="text" name="search" class="ios-input" placeholder="Search name, phone, address..." value="<?php echo htmlspecialchars($search_query); ?>" oninput="debounceSearch()">
+                    <input type="text" name="search" id="searchInput" class="ios-input" placeholder="Search name, phone, address..." value="<?php echo htmlspecialchars($search_query); ?>">
                 </div>
             </div>
             <div class="col-md-3">
                 <label class="ios-label-sm">Filter by Territory</label>
-                <select name="territory_id" class="form-select" onchange="document.getElementById('searchForm').submit();">
+                <select name="territory_id" class="form-select">
                     <option value="">All Territories</option>
                     <?php foreach($territories_list as $t): ?>
                         <option value="<?php echo $t['id']; ?>" <?php echo $territory_filter == $t['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($t['name']); ?></option>
@@ -272,7 +272,7 @@ include '../includes/sidebar.php';
             </div>
             <div class="col-md-3">
                 <label class="ios-label-sm">Filter by Route</label>
-                <select name="route_id" class="form-select" onchange="document.getElementById('searchForm').submit();">
+                <select name="route_id" class="form-select">
                     <option value="">All Routes</option>
                     <?php foreach($routes as $r): ?>
                         <option value="<?php echo $r['id']; ?>" <?php echo $route_filter == $r['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($r['name']); ?></option>
@@ -281,7 +281,7 @@ include '../includes/sidebar.php';
             </div>
             <div class="col-md-3">
                 <label class="ios-label-sm">Filter by Balance</label>
-                <select name="balance_status" class="form-select" onchange="document.getElementById('searchForm').submit();">
+                <select name="balance_status" class="form-select">
                     <option value="">All Balances</option>
                     <option value="outstanding" <?php echo $balance_filter == 'outstanding' ? 'selected' : ''; ?>>Outstanding Customers</option>
                     <option value="cleared" <?php echo $balance_filter == 'cleared' ? 'selected' : ''; ?>>Cleared Customers</option>
@@ -598,13 +598,111 @@ function confirmDelete(id) {
     }
 }
 
-// Search debounce
+// AJAX Live Search & Debounce
 let searchTimer;
-function debounceSearch() {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-        document.getElementById('searchForm').submit();
-    }, 800);
+const searchInput = document.getElementById('searchInput');
+
+if (searchInput) {
+    // Auto focus on page load if search is already active
+    if (searchInput.value !== '') {
+        searchInput.focus();
+        const val = searchInput.value;
+        searchInput.value = '';
+        searchInput.value = val;
+    }
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            performLiveSearch();
+        }, 300);
+    });
+}
+
+const searchForm = document.getElementById('searchForm');
+if (searchForm) {
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        performLiveSearch();
+    });
+    
+    // Automatically perform AJAX search when any filter dropdown changes
+    searchForm.querySelectorAll('select').forEach(select => {
+        select.addEventListener('change', function() {
+            performLiveSearch();
+        });
+    });
+}
+
+// Handle pagination via AJAX
+document.addEventListener('click', function(e) {
+    const pageLink = e.target.closest('.ios-pagination .page-link');
+    if (pageLink) {
+        e.preventDefault();
+        const url = pageLink.getAttribute('href');
+        if (url) {
+            history.pushState(null, '', url);
+            fetchResults(url);
+        }
+    }
+});
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', function() {
+    fetchResults(window.location.href);
+});
+
+function fetchResults(url) {
+    const tableContainer = document.querySelector('.table-responsive');
+    if (tableContainer) {
+        tableContainer.style.opacity = '0.5';
+        tableContainer.style.transition = 'opacity 0.15s ease';
+    }
+    
+    fetch(url)
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Replace the table body
+            const newTable = doc.querySelector('.table-responsive');
+            const currentTable = document.querySelector('.table-responsive');
+            if (newTable && currentTable) {
+                currentTable.innerHTML = newTable.innerHTML;
+                currentTable.style.opacity = '1';
+            }
+            
+            // Replace the pagination bar
+            const newPagination = doc.querySelector('.ios-pagination');
+            const currentPagination = document.querySelector('.ios-pagination');
+            if (currentPagination) {
+                if (newPagination) {
+                    currentPagination.outerHTML = newPagination.outerHTML;
+                } else {
+                    currentPagination.remove();
+                }
+            } else if (newPagination) {
+                const tableCard = document.querySelector('.dash-card.mb-4.overflow-hidden');
+                if (tableCard) {
+                    tableCard.insertAdjacentHTML('afterend', newPagination.outerHTML);
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching search results:', err);
+            if (tableContainer) tableContainer.style.opacity = '1';
+        });
+}
+
+function performLiveSearch() {
+    const form = document.getElementById('searchForm');
+    const formData = new FormData(form);
+    const searchParams = new URLSearchParams(formData);
+    const url = 'customers.php?' + searchParams.toString();
+    
+    history.pushState(null, '', url);
+    fetchResults(url);
 }
 </script>
 
