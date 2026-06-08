@@ -114,7 +114,10 @@ if ($isRep) {
     $params[] = $_SESSION['user_id'];
 }
 if ($search_query !== '') {
-    $whereClause .= " AND (o.id LIKE ? OR c.name LIKE ?)";
+    $whereClause .= " AND (o.id LIKE ? OR c.name LIKE ? OR c.phone LIKE ? OR c.whatsapp LIKE ? OR c.address LIKE ?)";
+    $params[] = "%$search_query%";
+    $params[] = "%$search_query%";
+    $params[] = "%$search_query%";
     $params[] = "%$search_query%";
     $params[] = "%$search_query%";
 }

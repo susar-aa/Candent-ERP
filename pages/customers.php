@@ -118,8 +118,8 @@ if (hasRole('rep')) {
     $params[] = $_SESSION['user_id'];
 }
 if ($search_query !== '') {
-    $whereClause .= " AND (c.name LIKE ? OR c.phone LIKE ? OR c.address LIKE ?)";
-    $params = array_merge($params, ["%$search_query%", "%$search_query%", "%$search_query%"]);
+    $whereClause .= " AND (c.name LIKE ? OR c.phone LIKE ? OR c.whatsapp LIKE ? OR c.address LIKE ?)";
+    $params = array_merge($params, ["%$search_query%", "%$search_query%", "%$search_query%", "%$search_query%"]);
 }
 if ($route_filter !== '') {
     $whereClause .= " AND c.route_id = ?";
