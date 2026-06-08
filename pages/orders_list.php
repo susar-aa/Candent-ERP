@@ -170,6 +170,88 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $orders = $stmt->fetchAll();
 
+// --- EXPORT TO EXCEL (CSV) ---
+if (isset($_GET['export']) && $_GET['export'] === 'excel') {
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    // Fetch ALL matching orders matching current filters without pagination limit
+    $exportQuery = "
+        SELECT o.id, o.created_at, c.name as customer_name, u.name as rep_name, o.total_amount,
+               o.payment_method, o.payment_status,
+               ch.bank_name, ch.cheque_number, ch.banking_date, ch.status as cheque_status
+        FROM orders o 
+        LEFT JOIN customers c ON o.customer_id = c.id 
+        LEFT JOIN users u ON o.rep_id = u.id 
+        LEFT JOIN cheques ch ON o.id = ch.order_id
+        $whereClause 
+        ORDER BY o.created_at DESC
+    ";
+    
+    $exportStmt = $pdo->prepare($exportQuery);
+    $exportStmt->execute($params);
+    $allOrders = $exportStmt->fetchAll();
+    
+    $filename = "sales_history_" . date('Ymd_His') . ".csv";
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
+    $output = fopen('php://output', 'w');
+    
+    // UTF-8 BOM for Excel compatibility
+    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+    
+    // Write CSV headers
+    fputcsv($output, [
+        'Order #',
+        'Date & Time',
+        'Customer Name',
+        'Sales Representative',
+        'Total Amount (Rs)',
+        'Payment Method',
+        'Payment Status',
+        'Bank Name',
+        'Cheque Number',
+        'Banking Date',
+        'Cheque Status'
+    ]);
+    
+    // Write data rows
+    foreach ($allOrders as $row) {
+        $orderNum = "#" . str_pad($row['id'], 6, '0', STR_PAD_LEFT);
+        $dateFormatted = date('Y-m-d H:i A', strtotime($row['created_at']));
+        $customer = $row['customer_name'] ?? 'Walk-in Customer';
+        $rep = $row['rep_name'] ?? 'System';
+        $amount = number_format($row['total_amount'], 2, '.', '');
+        
+        $paymentStatus = ucfirst($row['payment_status']);
+        $chequeStatus = $row['payment_method'] === 'Cheque' ? ucfirst($row['cheque_status'] ?? 'pending') : 'N/A';
+        $bankName = $row['payment_method'] === 'Cheque' ? ($row['bank_name'] ?? '') : 'N/A';
+        $chequeNumber = $row['payment_method'] === 'Cheque' ? ($row['cheque_number'] ?? '') : 'N/A';
+        $bankingDate = $row['payment_method'] === 'Cheque' ? ($row['banking_date'] ?? '') : 'N/A';
+        
+        fputcsv($output, [
+            $orderNum,
+            $dateFormatted,
+            $customer,
+            $rep,
+            $amount,
+            $row['payment_method'],
+            $paymentStatus,
+            $bankName,
+            $chequeNumber,
+            $bankingDate,
+            $chequeStatus
+        ]);
+    }
+    
+    fclose($output);
+    exit;
+}
+
 include '../includes/header.php';
 include '../includes/sidebar.php';
 ?>
@@ -327,6 +409,9 @@ include '../includes/sidebar.php';
         <div class="page-subtitle">Track, manage, and review all sales orders and payments.</div>
     </div>
     <div class="d-flex gap-2">
+        <a href="?export=excel&search=<?php echo urlencode($search_query); ?>&status=<?php echo urlencode($status_filter); ?>&method=<?php echo urlencode($method_filter); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>" class="quick-btn quick-btn-secondary" title="Export Filtered Sales to Excel">
+            <i class="bi bi-file-earmark-excel text-success"></i> Export Excel
+        </a>
         <?php if(hasRole(['admin', 'rep'])): ?>
         <a href="create_order.php" class="quick-btn quick-btn-primary">
             <i class="bi bi-plus-lg"></i> New Order
