@@ -473,6 +473,7 @@ include '../includes/sidebar.php';
             display: block !important;
             box-shadow: none !important;
             border: none !important;
+            background: transparent !important;
         }
 
         /* Show and perfectly format the payslip */
@@ -513,6 +514,131 @@ include '../includes/sidebar.php';
 
         .payslip-footer { display: flex; justify-content: space-between; margin-top: 60px; page-break-inside: avoid; }
         .sig-box { width: 200px; text-align: center; border-top: 1px solid #000; padding-top: 5px; font-size: 10pt; font-weight: bold; }
+
+        /* Printable Calendar Sheet Styles */
+        .print-calendar-card {
+            display: block !important;
+            border: 2px solid #000 !important;
+            border-radius: 12px !important;
+            background: #fff !important;
+            page-break-before: always;
+            margin-top: 30px !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+        }
+        .print-calendar-card .modern-card-header {
+            background: #fff !important;
+            border-bottom: 2px solid #000 !important;
+            padding: 10px 0 !important;
+        }
+        .print-calendar-card .modern-card-title {
+            color: #000 !important;
+            font-size: 14pt !important;
+        }
+        .print-calendar-card .modern-card-icon {
+            display: none !important;
+        }
+        .print-calendar-card .modern-card-body {
+            padding: 15px 0 !important;
+        }
+        .calendar-wrapper {
+            border: 1px solid #000 !important;
+            border-radius: 8px !important;
+            overflow: visible !important;
+        }
+        .calendar-header-grid {
+            display: grid !important;
+            grid-template-columns: repeat(7, 1fr) !important;
+            border-bottom: 1px solid #000 !important;
+            background: #f2f2f7 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .calendar-header-cell {
+            border-right: 1px solid #000 !important;
+            color: #000 !important;
+            padding: 6px !important;
+            font-size: 9pt !important;
+        }
+        .calendar-header-cell:last-child {
+            border-right: none !important;
+        }
+        .calendar-grid {
+            display: grid !important;
+            grid-template-columns: repeat(7, 1fr) !important;
+            border: none !important;
+        }
+        .calendar-day {
+            border-right: 1px solid #000 !important;
+            border-bottom: 1px solid #000 !important;
+            min-height: 90px !important;
+            background: #fff !important;
+            page-break-inside: avoid !important;
+            padding: 6px !important;
+        }
+        .calendar-day:nth-child(7n) {
+            border-right: none !important;
+        }
+        .calendar-day.other-month {
+            background: #f2f2f7 !important;
+            opacity: 0.5 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .calendar-day.today {
+            background: #fff !important;
+        }
+        .calendar-day.today .day-num {
+            background: #000 !important;
+            color: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .day-num {
+            font-size: 9pt !important;
+            color: #000 !important;
+            margin-bottom: 2px !important;
+        }
+        .cal-event {
+            font-size: 7pt !important;
+            padding: 2px 4px !important;
+            border: 1px solid #ccc !important;
+            margin-bottom: 2px !important;
+            border-radius: 4px !important;
+            color: #000 !important;
+            background: #fff !important;
+        }
+        .cal-event-route {
+            border-color: #0369a1 !important;
+            background: #f0f9ff !important;
+            color: #0369a1 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .cal-event-present {
+            border-color: #15803d !important;
+            background: #f0fdf4 !important;
+            color: #15803d !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .cal-event-half {
+            border-color: #a16207 !important;
+            background: #fefce8 !important;
+            color: #a16207 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .cal-event-absent {
+            border-color: #b91c1c !important;
+            background: #fef2f2 !important;
+            color: #b91c1c !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .log-btn {
+            display: none !important;
+        }
     }
 </style>
 
@@ -609,16 +735,20 @@ include '../includes/sidebar.php';
                     <td class="center"><?php echo $totalDays; ?> days</td>
                     <td class="right">Rs <?php echo number_format($totalPay, 2); ?></td>
                 </tr>
+                <?php if ($payroll && (float)$payroll['bonus'] > 0): ?>
                 <tr>
                     <td>Performance Bonus / Additions</td>
                     <td class="center">-</td>
-                    <td class="right text-green">+ Rs <?php echo number_format($payroll ? $payroll['bonus'] : 0, 2); ?></td>
+                    <td class="right text-green">+ Rs <?php echo number_format($payroll['bonus'], 2); ?></td>
                 </tr>
+                <?php endif; ?>
+                <?php if ($payroll && (float)$payroll['deduction'] > 0): ?>
                 <tr>
                     <td>Deductions / Penalties</td>
                     <td class="center">-</td>
-                    <td class="right text-red">- Rs <?php echo number_format($payroll ? $payroll['deduction'] : 0, 2); ?></td>
+                    <td class="right text-red">- Rs <?php echo number_format($payroll['deduction'], 2); ?></td>
                 </tr>
+                <?php endif; ?>
                 <tr class="total-row">
                     <td colspan="2">NET PAYOUT AMOUNT</td>
                     <td class="right text-green">Rs <?php echo number_format($payroll ? $payroll['net_pay'] : $totalPay, 2); ?></td>
@@ -735,14 +865,14 @@ include '../includes/sidebar.php';
         </div>
     </div>
 
-    <!-- Screen: Interactive Calendar -->
-    <div class="modern-card print-hide">
+    <!-- Screen: Interactive Calendar & Printable Schedule -->
+    <div class="modern-card print-calendar-card">
         <div class="modern-card-header">
             <h2 class="modern-card-title">
                 <span class="modern-card-icon icon-blue"><i class="bi bi-calendar-day"></i></span>
                 <span id="calendarMonthLabel">Attendance Calendar</span>
             </h2>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 print-hide">
                 <a href="payroll.php?month=<?php echo htmlspecialchars($selected_month); ?>" class="btn-action btn-secondary-action py-1 px-3" style="font-size: 0.85rem;">View All Payroll</a>
             </div>
         </div>
