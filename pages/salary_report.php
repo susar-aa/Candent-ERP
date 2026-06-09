@@ -199,12 +199,99 @@ include '../includes/sidebar.php';
     .calendar-event-badge.absent { background:rgba(255,59,48,0.08); border-color:rgba(255,59,48,0.2); color:#CC2200; }
     .quick-log-btn { opacity:0; transition:opacity .2s ease; margin-top:auto; font-size:.7rem; color:var(--ios-label-2); font-weight:600; width:100%; text-align:center; }
     .calendar-day-cell:not(.other-month):hover .quick-log-btn { opacity:1; }
+    
+    .print-only { display: none !important; }
+    
+    @media print {
+        body, html, #mainContent, .main-content-wrapper {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        /* Hide sidebars, top headers, footer, alert messages and action buttons */
+        #sidebarMenu, .sidebar, .navbar, .top-bar, .page-header, .print-hide, .btn, .quick-btn, .modal, .modal-backdrop, .ios-alert, .quick-btn-primary, .quick-btn-secondary {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+        /* Page layout */
+        @page {
+            size: A4 portrait;
+            margin: 12mm 12mm 15mm 12mm;
+        }
+        /* Fix row/column systems */
+        .row {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
+            margin: 0 !important;
+        }
+        .col-md-3, .col-6 {
+            width: 25% !important;
+            flex: 0 0 25% !important;
+            max-width: 25% !important;
+            box-sizing: border-box !important;
+        }
+        .col-md-6 {
+            width: 50% !important;
+            flex: 0 0 50% !important;
+            max-width: 50% !important;
+            box-sizing: border-box !important;
+        }
+        .col-7th {
+            width: 14.285% !important;
+            flex: 0 0 14.285% !important;
+            max-width: 14.285% !important;
+            box-sizing: border-box !important;
+        }
+        .calendar-day-cell {
+            min-height: 80px !important;
+            border: 1px solid #C7C7CC !important;
+            background: #ffffff !important;
+            page-break-inside: avoid !important;
+        }
+        .calendar-day-cell.other-month {
+            background: #F2F2F7 !important;
+            opacity: 0.4 !important;
+        }
+        .quick-log-btn {
+            display: none !important;
+        }
+        .calendar-event-badge {
+            font-size: .6rem !important;
+            padding: 2px 4px !important;
+            border: 1px solid #C7C7CC !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin-top: 2px !important;
+        }
+        .dash-card {
+            border: 1px solid #C7C7CC !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            background: #ffffff !important;
+        }
+        .rounded-3 {
+            border: 1px solid #C7C7CC !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+        }
+    }
 </style>
 
-<div class="page-header">
+<div class="page-header d-flex justify-content-between align-items-center">
     <div>
         <h1 class="h2">Salary Report – <?php echo htmlspecialchars($employee['name']); ?></h1>
         <div class="page-subtitle">Detailed salary calculation for the selected month.</div>
+    </div>
+    <div class="page-header-actions print-hide">
+        <button onclick="window.print()" class="quick-btn py-2 px-3 fw-bold" style="background: var(--accent); color: white; border: none; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; border-radius: 8px;">
+            <i class="bi bi-printer-fill"></i> Export PDF / Print
+        </button>
     </div>
 </div>
 
@@ -258,7 +345,7 @@ $payStmt->execute([$employee_id, $selected_month]);
 $payroll = $payStmt->fetch(PDO::FETCH_ASSOC);
 ?>
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 print-hide">
     <div class="col-md-3 col-6">
         <div class="p-3 rounded-3 border bg-white shadow-sm">
             <div style="font-size:0.72rem; font-weight:700; color:var(--ios-label-2); text-transform:uppercase; margin-bottom:2px;">Route Days</div>
@@ -281,6 +368,93 @@ $payroll = $payStmt->fetch(PDO::FETCH_ASSOC);
         <div class="p-3 rounded-3 border bg-white shadow-sm">
             <div style="font-size:0.72rem; font-weight:700; color:var(--ios-label-2); text-transform:uppercase; margin-bottom:2px;">Calculated Salary</div>
             <div id="statSalary" style="font-size:1.4rem; font-weight:800; color:#1A9A3A;">Rs <?php echo number_format($totalPay,2); ?></div>
+        </div>
+    </div>
+</div>
+
+<div class="print-only payslip-container" style="border: 2px solid #000; padding: 25px; border-radius: 12px; margin-bottom: 30px; background: #fff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1A9A3A; padding-bottom: 15px; margin-bottom: 25px;">
+        <div>
+            <h1 style="font-size: 1.8rem; font-weight: 800; margin: 0; color: #1A9A3A; letter-spacing: -0.5px;">CANDENT ERP</h1>
+            <p style="margin: 3px 0 0 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: #666;">Official Salary Statement</p>
+        </div>
+        <div style="text-align: right;">
+            <h2 style="font-size: 1.2rem; font-weight: 700; margin: 0; color: #000;">PAY SLIP</h2>
+            <p style="margin: 3px 0 0 0; font-size: 0.85rem; color: #333; font-weight: 600;">Statement Month: <?php echo date('F Y', strtotime($rangeStart)); ?></p>
+        </div>
+    </div>
+    
+    <div class="row" style="margin-bottom: 25px;">
+        <div class="col-6">
+            <h3 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #666; margin-bottom: 8px;">Employee Details</h3>
+            <div style="font-size: 0.95rem; line-height: 1.6;">
+                <strong>Name:</strong> <?php echo htmlspecialchars($employee['name']); ?><br>
+                <strong>Designation:</strong> <?php echo htmlspecialchars($employee['designation'] ?? 'Personnel'); ?><br>
+                <strong>Daily Wage Rate:</strong> Rs <?php echo number_format($employee['daily_rate'], 2); ?>
+            </div>
+        </div>
+        <div class="col-6 text-end" style="text-align: right;">
+            <h3 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #666; margin-bottom: 8px;">Statement Details</h3>
+            <div style="font-size: 0.95rem; line-height: 1.6;">
+                <strong>Slip Ref:</strong> #SLIP-<?php echo $employee_id; ?>-<?php echo date('Ym', strtotime($rangeStart)); ?><br>
+                <strong>Payment Status:</strong> <span style="font-weight: 700; color: <?php echo ($payroll && $payroll['status'] == 'paid') ? '#1A9A3A' : '#FF9500'; ?>;"><?php echo ($payroll && $payroll['status'] == 'paid') ? 'PAID' : 'PENDING'; ?></span><br>
+                <strong>Method:</strong> <?php echo htmlspecialchars(($payroll && $payroll['payment_method']) ? $payroll['payment_method'] : 'N/A'); ?>
+            </div>
+        </div>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <thead>
+            <tr style="border-bottom: 2px solid #000; font-size: 0.85rem; text-transform: uppercase; color: #444; font-weight: 700;">
+                <th style="padding: 10px 0; text-align: left;">Earnings Description</th>
+                <th style="padding: 10px 0; text-align: right; width: 150px;">Calculation Details</th>
+                <th style="padding: 10px 0; text-align: right; width: 180px;">Amount (Rs)</th>
+            </tr>
+        </thead>
+        <tbody style="font-size: 0.95rem;">
+            <tr style="border-bottom: 1px dashed #E5E5EA;">
+                <td style="padding: 12px 0;">Route Days worked</td>
+                <td style="padding: 12px 0; text-align: right;"><?php echo $routeDays; ?> days</td>
+                <td style="padding: 12px 0; text-align: right;">-</td>
+            </tr>
+            <tr style="border-bottom: 1px dashed #E5E5EA;">
+                <td style="padding: 12px 0;">Office Days worked</td>
+                <td style="padding: 12px 0; text-align: right;"><?php echo $officeDays; ?> days</td>
+                <td style="padding: 12px 0; text-align: right;">-</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #000; font-weight: 600;">
+                <td style="padding: 12px 0;">Basic Salary (Total Days x Daily Wage)</td>
+                <td style="padding: 12px 0; text-align: right;"><?php echo $totalDays; ?> days</td>
+                <td style="padding: 12px 0; text-align: right;">Rs <?php echo number_format($totalPay, 2); ?></td>
+            </tr>
+            <tr style="border-bottom: 1px dashed #E5E5EA;">
+                <td style="padding: 12px 0; color: #1A9A3A;">Additions / Performance Bonus</td>
+                <td style="padding: 12px 0; text-align: right;">-</td>
+                <td style="padding: 12px 0; text-align: right; color: #1A9A3A;">+ Rs <?php echo number_format($payroll ? $payroll['bonus'] : 0, 2); ?></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #000;">
+                <td style="padding: 12px 0; color: #FF3B30;">Deductions / Penalties</td>
+                <td style="padding: 12px 0; text-align: right;">-</td>
+                <td style="padding: 12px 0; text-align: right; color: #FF3B30;">- Rs <?php echo number_format($payroll ? $payroll['deduction'] : 0, 2); ?></td>
+            </tr>
+            <tr style="font-size: 1.15rem; font-weight: bold; background: #F2F2F7;">
+                <td style="padding: 15px 10px; border-radius: 6px 0 0 6px;">Net Payout Amount</td>
+                <td style="padding: 15px 10px; text-align: right;">Total Net</td>
+                <td style="padding: 15px 10px; text-align: right; color: #1A9A3A; border-radius: 0 6px 6px 0;">Rs <?php echo number_format($payroll ? $payroll['net_pay'] : $totalPay, 2); ?></td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="row" style="margin-top: 60px;">
+        <div class="col-6">
+            <div style="border-top: 1.5px solid #000; width: 220px; text-align: center; padding-top: 8px; font-size: 0.85rem; font-weight: 600;">
+                Employee Signature
+            </div>
+        </div>
+        <div class="col-6 text-end" style="text-align: right; display: flex; justify-content: flex-end;">
+            <div style="border-top: 1.5px solid #000; width: 220px; text-align: center; padding-top: 8px; font-size: 0.85rem; font-weight: 600;">
+                Authorized Signature
+            </div>
         </div>
     </div>
 </div>
