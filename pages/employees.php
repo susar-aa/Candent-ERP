@@ -139,6 +139,29 @@ include '../includes/sidebar.php';
         border-color: var(--accent) !important; 
         box-shadow: 0 0 0 3px rgba(48,200,138,0.2) !important;
     }
+    
+    /* Month-wise filter pills styling */
+    .month-pill {
+        border: 1px solid var(--ios-separator);
+        background: var(--ios-surface);
+        color: var(--ios-label);
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .month-pill:hover {
+        background: var(--ios-surface-2);
+        color: var(--ios-label);
+    }
+    .month-pill.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 4px 10px rgba(48,200,138,0.2);
+    }
 </style>
 
 <div class="page-header">
@@ -222,7 +245,7 @@ include '../includes/sidebar.php';
                     $initials = strtoupper(substr($words[0], 0, 1) . (isset($words[1]) ? substr($words[1], 0, 1) : ''));
                     $color = $colors[$e['id'] % count($colors)];
                 ?>
-                <tr class="employee-row <?php echo $e['status'] == 'inactive' ? 'opacity-50' : ''; ?>">
+                <tr id="employee-row-<?php echo $e['id']; ?>" class="employee-row <?php echo $e['status'] == 'inactive' ? 'opacity-50' : ''; ?>">
                     <td class="text-start ps-4">
                         <div class="d-flex align-items-center">
                             <div class="contact-avatar-circle" style="background: <?php echo $color; ?>20; color: <?php echo $color; ?>;">
@@ -262,6 +285,12 @@ include '../includes/sidebar.php';
                     </td>
                     <td class="text-end pe-4">
                         <div class="d-flex justify-content-end gap-1 flex-wrap">
+                            <!-- Route History Button -->
+                            <button class="quick-btn" style="padding: 6px 12px; background: rgba(0,122,255,0.1); color: #007AFF;" title="Route History" 
+                                onclick='loadEmployeeHistory(<?php echo $e['id']; ?>, "<?php echo htmlspecialchars($e['name'], ENT_QUOTES, 'UTF-8'); ?>")'>
+                                <i class="bi bi-clock-history"></i>
+                            </button>
+
                             <!-- Edit Button -->
                             <button class="quick-btn quick-btn-secondary" style="padding: 6px 12px;" title="Edit Employee" 
                                 onclick='openEditModal(<?php echo htmlspecialchars(json_encode($e), ENT_QUOTES, 'UTF-8'); ?>)'>
@@ -302,6 +331,76 @@ include '../includes/sidebar.php';
                 </tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Employee Route History Card (Hidden by default, shown when employee is selected) -->
+<div id="employeeHistoryCard" class="dash-card mb-4 overflow-hidden d-none">
+    <div class="dash-card-header d-flex justify-content-between align-items-center" style="background: var(--ios-surface); padding: 18px 20px;">
+        <span class="card-title">
+            <span class="card-title-icon" style="background: rgba(0,122,255,0.1); color: #007AFF;">
+                <i class="bi bi-clock-history"></i>
+            </span>
+            <span id="historyEmployeeName">Employee Route History</span>
+        </span>
+        <button class="quick-btn text-muted" onclick="closeHistory()" style="background: transparent; border: none; padding: 4px 8px;">
+            <i class="bi bi-x-lg"></i> Close
+        </button>
+    </div>
+    
+    <div class="p-3" style="background: var(--ios-bg);">
+        <!-- Summary Stats inside history -->
+        <div class="row g-3 mb-3" id="historyStatsRow">
+            <div class="col-md-3 col-6">
+                <div class="p-3 rounded-3 border bg-white shadow-sm">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Total Trips</div>
+                    <div id="statTotalTrips" style="font-size: 1.4rem; font-weight: 800; color: var(--ios-label);">0</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-3 rounded-3 border bg-white shadow-sm">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Total Distance</div>
+                    <div id="statTotalDistance" style="font-size: 1.4rem; font-weight: 800; color: #007AFF;">0.0 km</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-3 rounded-3 border bg-white shadow-sm">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Total Sales</div>
+                    <div id="statTotalSales" style="font-size: 1.4rem; font-weight: 800; color: #1A9A3A;">Rs 0.00</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-3 rounded-3 border bg-white shadow-sm">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Total Collections</div>
+                    <div id="statTotalCollections" style="font-size: 1.4rem; font-weight: 800; color: #AF52DE;">Rs 0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Month Filter Tabs/Pills -->
+        <div class="mb-3 d-flex flex-wrap gap-1 align-items-center" id="monthFilterContainer">
+            <span class="ios-label-sm me-2 mb-0" style="padding-left: 0;">Filter Month:</span>
+        </div>
+
+        <!-- Table of routes -->
+        <div class="table-responsive bg-white rounded-3 border shadow-sm">
+            <table class="ios-table text-center" id="historyTable" style="width: 100%;">
+                <thead>
+                    <tr class="table-ios-header">
+                        <th style="width: 15%;">Date</th>
+                        <th style="width: 25%; text-align: left;">Route Name</th>
+                        <th style="width: 15%;">Role in Trip</th>
+                        <th style="width: 15%;">Distance</th>
+                        <th style="width: 15%;">Sales / Collections</th>
+                        <th style="width: 15%;">Status</th>
+                        <th style="width: 10%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <!-- Dynamically loaded rows -->
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -435,6 +534,230 @@ function openEditModal(e) {
     document.getElementById('edit_rate').value = e.daily_rate;
     document.getElementById('edit_status').value = e.status;
     new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+// Employee History AJAX and rendering functions
+let currentEmployeeHistory = [];
+let activeMonthFilter = 'All';
+
+function loadEmployeeHistory(employeeId, employeeName) {
+    const card = document.getElementById('employeeHistoryCard');
+    const headerName = document.getElementById('historyEmployeeName');
+    const tableBody = document.getElementById('historyTableBody');
+    const monthContainer = document.getElementById('monthFilterContainer');
+    
+    // Highlight the active row
+    document.querySelectorAll('.employee-row').forEach(row => {
+        row.style.background = '';
+    });
+    const activeRow = document.getElementById(`employee-row-${employeeId}`);
+    if (activeRow) {
+        activeRow.style.background = 'rgba(0, 122, 255, 0.08)';
+    }
+    
+    // Show card & loader
+    card.classList.remove('d-none');
+    headerName.innerText = `Route History: ${employeeName}`;
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="7" class="py-5">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                <span class="fw-medium text-muted">Retrieving employee route logs...</span>
+            </td>
+        </tr>
+    `;
+    monthContainer.innerHTML = '';
+    
+    // Scroll to card
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    
+    // Fetch data
+    fetch(`../ajax/get_employee_history.php?employee_id=${employeeId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentEmployeeHistory = data.history;
+                activeMonthFilter = 'All';
+                renderMonthFilters();
+                renderHistoryTable();
+            } else {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-4 text-danger">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Error: ${data.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching history:', err);
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="py-4 text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to connect to server.
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+function closeHistory() {
+    document.getElementById('employeeHistoryCard').classList.add('d-none');
+    document.querySelectorAll('.employee-row').forEach(row => {
+        row.style.background = '';
+    });
+}
+
+function renderMonthFilters() {
+    const monthContainer = document.getElementById('monthFilterContainer');
+    monthContainer.innerHTML = '<span class="ios-label-sm me-2 mb-0" style="padding-left: 0;">Filter Month:</span>';
+    
+    // Get unique months in sorted order
+    const months = new Set();
+    currentEmployeeHistory.forEach(item => {
+        if (item.month_key) {
+            months.add(item.month_key);
+        }
+    });
+    
+    // Convert to array and sort (latest first)
+    const sortedMonths = Array.from(months).sort((a, b) => {
+        return new Date(b) - new Date(a);
+    });
+    
+    // Render "All" pill
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `month-pill ${activeMonthFilter === 'All' ? 'active' : ''}`;
+    allBtn.innerText = 'All';
+    allBtn.onclick = () => filterByMonth('All');
+    monthContainer.appendChild(allBtn);
+    
+    // Render each month pill
+    sortedMonths.forEach(m => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `month-pill ${activeMonthFilter === m ? 'active' : ''}`;
+        btn.innerText = m;
+        btn.onclick = () => filterByMonth(m);
+        monthContainer.appendChild(btn);
+    });
+}
+
+function filterByMonth(month) {
+    activeMonthFilter = month;
+    // Re-render pills to show active class
+    const pills = document.querySelectorAll('#monthFilterContainer .month-pill');
+    pills.forEach(pill => {
+        if (pill.innerText === month) {
+            pill.classList.add('active');
+        } else {
+            pill.classList.remove('active');
+        }
+    });
+    
+    renderHistoryTable();
+}
+
+function renderHistoryTable() {
+    const tableBody = document.getElementById('historyTableBody');
+    const filteredHistory = activeMonthFilter === 'All' 
+        ? currentEmployeeHistory 
+        : currentEmployeeHistory.filter(item => item.month_key === activeMonthFilter);
+        
+    if (filteredHistory.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="py-5 text-muted">
+                    <i class="bi bi-map d-block fs-3 mb-2 opacity-50"></i>
+                    No visited routes found for this selection.
+                </td>
+            </tr>
+        `;
+        // Update stats to 0
+        document.getElementById('statTotalTrips').innerText = '0';
+        document.getElementById('statTotalDistance').innerText = '0.0 km';
+        document.getElementById('statTotalSales').innerText = 'Rs 0.00';
+        document.getElementById('statTotalCollections').innerText = 'Rs 0.00';
+        return;
+    }
+    
+    // Calculate stats
+    let totalDistance = 0;
+    let totalSales = 0;
+    let totalCollections = 0;
+    
+    let html = '';
+    filteredHistory.forEach(item => {
+        // Stats summation
+        if (item.distance !== null) {
+            totalDistance += item.distance;
+        }
+        totalSales += item.total_sales;
+        totalCollections += item.total_collections;
+        
+        // Status Badge class
+        let statusBadgeClass = 'gray';
+        if (item.assignment_status === 'assigned') statusBadgeClass = 'blue';
+        else if (item.assignment_status === 'accepted') statusBadgeClass = 'blue';
+        else if (item.assignment_status === 'completed') statusBadgeClass = 'orange';
+        else if (item.assignment_status === 'unloaded') statusBadgeClass = 'green';
+        
+        // Format Distance
+        const distStr = item.distance !== null ? `${item.distance} km` : '<span class="text-muted small">N/A</span>';
+        
+        // Actions: View detailed audit report
+        const reportUrl = `route_detailed_report.php?id=${item.assignment_id}`;
+        
+        html += `
+            <tr>
+                <td><span class="fw-bold">${item.formatted_date}</span></td>
+                <td class="text-start">
+                    <span class="fw-bold text-dark">${escapeHtml(item.route_name)}</span>
+                    <div class="text-muted small" style="margin-top: 2px;">
+                        <span>Rep: ${escapeHtml(item.rep_name || 'N/A')}</span>
+                        <span class="mx-1">•</span>
+                        <span>Driver: ${escapeHtml(item.driver_name || 'Self Driven')}</span>
+                    </div>
+                </td>
+                <td><span class="badge bg-light text-dark border">${item.role_in_trip}</span></td>
+                <td><span class="fw-semibold">${distStr}</span></td>
+                <td>
+                    <div style="font-size: 0.9rem;">
+                        <span class="text-success fw-bold">S: Rs ${item.total_sales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; margin-top: 2px;">
+                        <span class="fw-bold" style="color: #AF52DE;">C: Rs ${item.total_collections.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                </td>
+                <td><span class="ios-badge ${statusBadgeClass}">${escapeHtml(item.assignment_status.toUpperCase())}</span></td>
+                <td>
+                    <a href="${reportUrl}" target="_blank" class="quick-btn quick-btn-ghost" style="padding: 4px 10px; font-size: 0.8rem; text-decoration: none;">
+                        <i class="bi bi-file-earmark-text"></i> Audit
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableBody.innerHTML = html;
+    
+    // Update stats
+    document.getElementById('statTotalTrips').innerText = filteredHistory.length;
+    document.getElementById('statTotalDistance').innerText = `${totalDistance.toFixed(1)} km`;
+    document.getElementById('statTotalSales').innerText = `Rs ${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('statTotalCollections').innerText = `Rs ${totalCollections.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // Live Search Filter for Employees Table
