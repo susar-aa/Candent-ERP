@@ -82,20 +82,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         try {
             // Route days count (unique dates where employee had a route as driver or rep)
             $routeDaysStmt = $pdo->prepare("SELECT COUNT(DISTINCT rr.assign_date) AS route_days FROM rep_routes rr
-                WHERE (rr.driver_id = :emp_id OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id))
+                WHERE (rr.driver_id = :emp_id_drv OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id_rep1) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id_rep2))
                 AND rr.assign_date BETWEEN :start AND :end");
-            $routeDaysStmt->execute(['emp_id'=>$employee_id,'start'=>$rangeStart,'end'=>$rangeEnd]);
+            $routeDaysStmt->execute([
+                'emp_id_drv' => $employee_id,
+                'emp_id_rep1' => $employee_id,
+                'emp_id_rep2' => $employee_id,
+                'start' => $rangeStart,
+                'end' => $rangeEnd
+            ]);
             $routeDays = (int)$routeDaysStmt->fetchColumn();
 
             // Office attendance days (present=1, half_day=0.5) excluding route days to avoid double counting
             $attStmt = $pdo->prepare("SELECT SUM(CASE WHEN status='present' THEN 1 WHEN status='half_day' THEN 0.5 ELSE 0 END) FROM attendance
-                WHERE employee_id = ? AND work_date BETWEEN ? AND ?
+                WHERE employee_id = :emp_id AND work_date BETWEEN :start AND :end
                 AND work_date NOT IN (
                     SELECT DISTINCT rr.assign_date FROM rep_routes rr
-                    WHERE (rr.driver_id = ? OR rr.rep_id = (SELECT user_id FROM employees WHERE id = ?) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = ?))
-                    AND rr.assign_date BETWEEN ? AND ?
+                    WHERE (rr.driver_id = :emp_id_drv OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id_rep1) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id_rep2))
+                    AND rr.assign_date BETWEEN :sub_start AND :sub_end
                 )");
-            $attStmt->execute([$employee_id, $rangeStart, $rangeEnd, $employee_id, $employee_id, $employee_id, $rangeStart, $rangeEnd]);
+            $attStmt->execute([
+                'emp_id' => $employee_id,
+                'start' => $rangeStart,
+                'end' => $rangeEnd,
+                'emp_id_drv' => $employee_id,
+                'emp_id_rep1' => $employee_id,
+                'emp_id_rep2' => $employee_id,
+                'sub_start' => $rangeStart,
+                'sub_end' => $rangeEnd
+            ]);
             $officeDays = (float)$attStmt->fetchColumn();
 
             $totalDays = $routeDays + $officeDays;
@@ -203,20 +218,35 @@ $rangeEnd = date('Y-m-t', strtotime($rangeStart));
 
 // Route days count (unique dates where employee had a route as driver or rep)
 $routeDaysStmt = $pdo->prepare("SELECT COUNT(DISTINCT rr.assign_date) AS route_days FROM rep_routes rr
-    WHERE (rr.driver_id = :emp_id OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id))
+    WHERE (rr.driver_id = :emp_id_drv OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id_rep1) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id_rep2))
     AND rr.assign_date BETWEEN :start AND :end");
-$routeDaysStmt->execute(['emp_id'=>$employee_id,'start'=>$rangeStart,'end'=>$rangeEnd]);
+$routeDaysStmt->execute([
+    'emp_id_drv' => $employee_id,
+    'emp_id_rep1' => $employee_id,
+    'emp_id_rep2' => $employee_id,
+    'start' => $rangeStart,
+    'end' => $rangeEnd
+]);
 $routeDays = (int)$routeDaysStmt->fetchColumn();
 
 // Office attendance days (present=1, half_day=0.5) excluding route days to avoid double counting
 $attStmt = $pdo->prepare("SELECT SUM(CASE WHEN status='present' THEN 1 WHEN status='half_day' THEN 0.5 ELSE 0 END) FROM attendance
-    WHERE employee_id = ? AND work_date BETWEEN ? AND ?
+    WHERE employee_id = :emp_id AND work_date BETWEEN :start AND :end
     AND work_date NOT IN (
         SELECT DISTINCT rr.assign_date FROM rep_routes rr
-        WHERE (rr.driver_id = ? OR rr.rep_id = (SELECT user_id FROM employees WHERE id = ?) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = ?))
-        AND rr.assign_date BETWEEN ? AND ?
+        WHERE (rr.driver_id = :emp_id_drv OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id_rep1) OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id_rep2))
+        AND rr.assign_date BETWEEN :sub_start AND :sub_end
     )");
-$attStmt->execute([$employee_id, $rangeStart, $rangeEnd, $employee_id, $employee_id, $employee_id, $rangeStart, $rangeEnd]);
+$attStmt->execute([
+    'emp_id' => $employee_id,
+    'start' => $rangeStart,
+    'end' => $rangeEnd,
+    'emp_id_drv' => $employee_id,
+    'emp_id_rep1' => $employee_id,
+    'emp_id_rep2' => $employee_id,
+    'sub_start' => $rangeStart,
+    'sub_end' => $rangeEnd
+]);
 $officeDays = (float)$attStmt->fetchColumn();
 
 $totalDays = $routeDays + $officeDays;
