@@ -162,6 +162,126 @@ include '../includes/sidebar.php';
         border-color: var(--accent);
         box-shadow: 0 4px 10px rgba(48,200,138,0.2);
     }
+
+    /* Segmented Control Styling */
+    .ios-segment-btn {
+        color: var(--ios-label-2);
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .ios-segment-btn:hover {
+        color: var(--ios-label);
+    }
+    .ios-segment-btn.active {
+        background: #FFFFFF !important;
+        color: var(--ios-label) !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 1px rgba(0,0,0,0.04);
+    }
+
+    /* Calendar styles */
+    .col-7th {
+        width: 14.285%;
+        flex: 0 0 14.285%;
+        max-width: 14.285%;
+    }
+    .calendar-day-cell {
+        min-height: 110px;
+        border-right: 1px solid var(--ios-separator);
+        border-bottom: 1px solid var(--ios-separator);
+        position: relative;
+        padding: 8px;
+        background: #fff;
+        transition: background 0.15s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: flex-start;
+        cursor: pointer;
+    }
+    .calendar-day-cell:hover {
+        background: rgba(0, 122, 255, 0.03);
+    }
+    .calendar-day-number {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--ios-label-2);
+        align-self: flex-end;
+        margin-bottom: 4px;
+    }
+    .calendar-day-cell.other-month {
+        background: #F8F9FA;
+        color: var(--ios-label-2);
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .calendar-day-cell.today {
+        background: rgba(48, 200, 138, 0.05);
+    }
+    .calendar-day-cell.today .calendar-day-number {
+        color: var(--accent);
+        font-weight: 800;
+        background: rgba(48, 200, 138, 0.12);
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .calendar-event-badge {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 4px 6px;
+        border-radius: 6px;
+        margin-top: 4px;
+        border: 1px solid transparent;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+    }
+    .calendar-event-badge.route {
+        background: rgba(0,122,255,0.08);
+        border-color: rgba(0,122,255,0.2);
+        color: #0055CC;
+    }
+    .calendar-event-badge.present {
+        background: rgba(52,199,89,0.08);
+        border-color: rgba(52,199,89,0.2);
+        color: #1A9A3A;
+    }
+    .calendar-event-badge.half-day {
+        background: rgba(255,204,0,0.08);
+        border-color: rgba(255,204,0,0.2);
+        color: #B38600;
+    }
+    .calendar-event-badge.absent {
+        background: rgba(255,59,48,0.08);
+        border-color: rgba(255,59,48,0.2);
+        color: #CC2200;
+    }
+    
+    /* Hover quick log icon style */
+    .calendar-day-cell .quick-log-btn {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        margin-top: auto;
+        font-size: 0.7rem;
+        color: var(--ios-label-2);
+        font-weight: 600;
+        width: 100%;
+        text-align: center;
+    }
+    .calendar-day-cell:not(.other-month):hover .quick-log-btn {
+        opacity: 1;
+    }
 </style>
 
 <div class="page-header">
@@ -343,9 +463,20 @@ include '../includes/sidebar.php';
             </span>
             <span id="historyEmployeeName">Employee Route History</span>
         </span>
-        <button class="quick-btn text-muted" onclick="closeHistory()" style="background: transparent; border: none; padding: 4px 8px;">
-            <i class="bi bi-x-lg"></i> Close
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <!-- iOS-style Segmented Control -->
+            <div class="ios-segmented-control" style="display: inline-flex; background: rgba(120,120,128,0.12); padding: 2px; border-radius: 8px;">
+                <button type="button" id="toggleListViewBtn" class="ios-segment-btn active" onclick="switchHistoryView('list')">
+                    List View
+                </button>
+                <button type="button" id="toggleCalendarViewBtn" class="ios-segment-btn" onclick="switchHistoryView('calendar')">
+                    Calendar View
+                </button>
+            </div>
+            <button class="quick-btn text-muted" onclick="closeHistory()" style="background: transparent; border: none; padding: 4px 8px;">
+                <i class="bi bi-x-lg"></i> Close
+            </button>
+        </div>
     </div>
     
     <div class="p-3" style="background: var(--ios-bg);">
@@ -382,24 +513,145 @@ include '../includes/sidebar.php';
             <span class="ios-label-sm me-2 mb-0" style="padding-left: 0;">Filter Month:</span>
         </div>
 
-        <!-- Table of routes -->
-        <div class="table-responsive bg-white rounded-3 border shadow-sm">
-            <table class="ios-table text-center" id="historyTable" style="width: 100%;">
-                <thead>
-                    <tr class="table-ios-header">
-                        <th style="width: 15%;">Date</th>
-                        <th style="width: 25%; text-align: left;">Route Name</th>
-                        <th style="width: 15%;">Role in Trip</th>
-                        <th style="width: 15%;">Distance</th>
-                        <th style="width: 15%;">Sales / Collections</th>
-                        <th style="width: 15%;">Status</th>
-                        <th style="width: 10%;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="historyTableBody">
-                    <!-- Dynamically loaded rows -->
-                </tbody>
-            </table>
+        <!-- List View Panel -->
+        <div id="historyListPanel">
+            <div class="table-responsive bg-white rounded-3 border shadow-sm">
+                <table class="ios-table text-center" id="historyTable" style="width: 100%;">
+                    <thead>
+                        <tr class="table-ios-header">
+                            <th style="width: 15%;">Date</th>
+                            <th style="width: 25%; text-align: left;">Route Name</th>
+                            <th style="width: 15%;">Role in Trip</th>
+                            <th style="width: 15%;">Distance</th>
+                            <th style="width: 15%;">Sales / Collections</th>
+                            <th style="width: 15%;">Status</th>
+                            <th style="width: 10%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- Dynamically loaded rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Calendar View Panel -->
+        <div id="historyCalendarPanel" class="d-none">
+            <!-- Calendar Navigation Header -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="quick-btn quick-btn-ghost" onclick="navigateCalendarMonth(-1)" style="padding: 6px 12px; font-size: 0.85rem;">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span id="calendarCurrentMonthName" class="fw-bold fs-5 text-dark" style="min-width: 150px; text-align: center;"></span>
+                    <button type="button" class="quick-btn quick-btn-ghost" onclick="navigateCalendarMonth(1)" style="padding: 6px 12px; font-size: 0.85rem;">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+                <!-- Legend -->
+                <div class="d-flex flex-wrap gap-3 small text-muted">
+                    <span class="d-flex align-items-center gap-1">
+                        <span style="display:inline-block; width: 12px; height: 12px; background: rgba(0,122,255,0.08); border: 1px solid rgba(0,122,255,0.2); border-radius: 3px;"></span>
+                        Route Assigned
+                    </span>
+                    <span class="d-flex align-items-center gap-1">
+                        <span style="display:inline-block; width: 12px; height: 12px; background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 3px;"></span>
+                        Present (Office)
+                    </span>
+                    <span class="d-flex align-items-center gap-1">
+                        <span style="display:inline-block; width: 12px; height: 12px; background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.2); border-radius: 3px;"></span>
+                        Half Day
+                    </span>
+                    <span class="d-flex align-items-center gap-1">
+                        <span style="display:inline-block; width: 12px; height: 12px; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); border-radius: 3px;"></span>
+                        Absent
+                    </span>
+                </div>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="border rounded-3 bg-white overflow-hidden shadow-sm">
+                <!-- Days of Week Header -->
+                <div class="row g-0 text-center border-bottom bg-light py-2 fw-semibold text-muted" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; width: 100%;">
+                    <div class="col-7th">Sun</div>
+                    <div class="col-7th">Mon</div>
+                    <div class="col-7th">Tue</div>
+                    <div class="col-7th">Wed</div>
+                    <div class="col-7th">Thu</div>
+                    <div class="col-7th">Fri</div>
+                    <div class="col-7th">Sat</div>
+                </div>
+                <!-- Calendar Body Grid -->
+                <div id="calendarGridBody" class="row g-0" style="width: 100%;">
+                    <!-- Days loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Attendance Modal -->
+<div class="modal fade" id="attendanceModal" tabindex="-1" aria-labelledby="attendanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+            <div class="modal-header border-0 pb-0" style="padding: 20px 24px 10px 24px;">
+                <h5 class="modal-title fw-bold text-dark" id="attendanceModalLabel">Record Attendance</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="attendanceForm" onsubmit="saveAttendance(event)">
+                <div class="modal-body" style="padding: 10px 24px 24px 24px;">
+                    <p class="text-muted small mb-3">Record work or absence for days when the employee was not assigned to an active delivery route.</p>
+                    
+                    <input type="hidden" id="attEmployeeId" name="employee_id">
+                    <input type="hidden" id="attDate" name="date">
+                    
+                    <div class="mb-3">
+                        <label class="ios-label-sm">Selected Date</label>
+                        <input type="text" id="attDateDisplay" class="ios-input" style="background: var(--ios-bg); pointer-events: none;" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="ios-label-sm">Work / Attendance Status</label>
+                        <div class="d-flex flex-column gap-2 mt-1">
+                            <label class="d-flex align-items-center gap-2 p-2 rounded border cursor-pointer hover-bg-light" style="cursor: pointer; background: rgba(52,199,89,0.05); margin-bottom: 0;">
+                                <input type="radio" name="status" value="present" checked>
+                                <div>
+                                    <span class="fw-bold text-success d-block" style="font-size: 0.9rem; text-align: left;">Present (Office / Other Work)</span>
+                                    <span class="text-muted d-block" style="font-size: 0.75rem; text-align: left;">Employee worked at the office or other non-route tasks.</span>
+                                </div>
+                            </label>
+                            
+                            <label class="d-flex align-items-center gap-2 p-2 rounded border cursor-pointer hover-bg-light" style="cursor: pointer; background: rgba(255,204,0,0.05); margin-bottom: 0;">
+                                <input type="radio" name="status" value="half_day">
+                                <div>
+                                    <span class="fw-bold text-warning d-block" style="font-size: 0.9rem; text-align: left;">Half Day (Office / Other Work)</span>
+                                    <span class="text-muted d-block" style="font-size: 0.75rem; text-align: left;">Employee worked half-day on non-route tasks.</span>
+                                </div>
+                            </label>
+                            
+                            <label class="d-flex align-items-center gap-2 p-2 rounded border cursor-pointer hover-bg-light" style="cursor: pointer; background: rgba(255,59,48,0.05); margin-bottom: 0;">
+                                <input type="radio" name="status" value="absent">
+                                <div>
+                                    <span class="fw-bold text-danger d-block" style="font-size: 0.9rem; text-align: left;">Absent</span>
+                                    <span class="text-muted d-block" style="font-size: 0.75rem; text-align: left;">Employee was absent from work on this day.</span>
+                                </div>
+                            </label>
+                            
+                            <label id="clearAttOption" class="d-flex align-items-center gap-2 p-2 rounded border cursor-pointer hover-bg-light" style="cursor: pointer; background: var(--ios-bg); margin-bottom: 0;">
+                                <input type="radio" name="status" value="clear">
+                                <div>
+                                    <span class="fw-bold text-muted d-block" style="font-size: 0.9rem; text-align: left;">Clear Record</span>
+                                    <span class="text-muted d-block" style="font-size: 0.75rem; text-align: left;">Delete the attendance log for this day.</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0" style="padding: 10px 24px 20px 24px;">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal" style="border-radius: 10px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4" style="background: var(--accent); border: none; border-radius: 10px; color: white;">Save Record</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -539,12 +791,46 @@ function openEditModal(e) {
 // Employee History AJAX and rendering functions
 let currentEmployeeHistory = [];
 let activeMonthFilter = 'All';
+let currentHistoryView = 'list'; // 'list' or 'calendar'
+let calendarCurrentDate = new Date();
+let calendarEvents = {};
+let currentEmployeeIdForCalendar = null;
+let currentEmployeeNameForCalendar = '';
+
+function switchHistoryView(view) {
+    currentHistoryView = view;
+    
+    const listBtn = document.getElementById('toggleListViewBtn');
+    const calBtn = document.getElementById('toggleCalendarViewBtn');
+    const listPanel = document.getElementById('historyListPanel');
+    const calPanel = document.getElementById('historyCalendarPanel');
+    const filterContainer = document.getElementById('monthFilterContainer');
+    
+    if (view === 'list') {
+        listBtn.classList.add('active');
+        calBtn.classList.remove('active');
+        listPanel.classList.remove('d-none');
+        calPanel.classList.add('d-none');
+        filterContainer.classList.remove('d-none');
+    } else {
+        listBtn.classList.remove('active');
+        calBtn.classList.add('active');
+        listPanel.classList.add('d-none');
+        calPanel.classList.remove('d-none');
+        filterContainer.classList.add('d-none');
+        
+        loadCalendarData();
+    }
+}
 
 function loadEmployeeHistory(employeeId, employeeName) {
     const card = document.getElementById('employeeHistoryCard');
     const headerName = document.getElementById('historyEmployeeName');
     const tableBody = document.getElementById('historyTableBody');
     const monthContainer = document.getElementById('monthFilterContainer');
+    
+    currentEmployeeIdForCalendar = employeeId;
+    currentEmployeeNameForCalendar = employeeName;
     
     // Highlight the active row
     document.querySelectorAll('.employee-row').forEach(row => {
@@ -571,7 +857,12 @@ function loadEmployeeHistory(employeeId, employeeName) {
     // Scroll to card
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     
-    // Fetch data
+    // Load whichever view is currently active
+    if (currentHistoryView === 'calendar') {
+        loadCalendarData();
+    }
+    
+    // Fetch data for the list view anyway
     fetch(`../ajax/get_employee_history.php?employee_id=${employeeId}`)
         .then(response => response.json())
         .then(data => {
@@ -743,11 +1034,277 @@ function renderHistoryTable() {
     
     tableBody.innerHTML = html;
     
-    // Update stats
-    document.getElementById('statTotalTrips').innerText = filteredHistory.length;
-    document.getElementById('statTotalDistance').innerText = `${totalDistance.toFixed(1)} km`;
-    document.getElementById('statTotalSales').innerText = `Rs ${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.getElementById('statTotalCollections').innerText = `Rs ${totalCollections.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // Update stats only if we are currently in list view (calendar has its own dates scope)
+    if (currentHistoryView === 'list') {
+        document.getElementById('statTotalTrips').innerText = filteredHistory.length;
+        document.getElementById('statTotalDistance').innerText = `${totalDistance.toFixed(1)} km`;
+        document.getElementById('statTotalSales').innerText = `Rs ${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('statTotalCollections').innerText = `Rs ${totalCollections.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+}
+
+// Calendar View Data Loading & Rendering
+function loadCalendarData() {
+    if (!currentEmployeeIdForCalendar) return;
+    
+    const year = calendarCurrentDate.getFullYear();
+    const month = String(calendarCurrentDate.getMonth() + 1).padStart(2, '0');
+    const monthStr = `${year}-${month}`;
+    
+    // Update month display
+    const options = { month: 'long', year: 'numeric' };
+    document.getElementById('calendarCurrentMonthName').innerText = calendarCurrentDate.toLocaleDateString('en-US', options);
+    
+    const gridBody = document.getElementById('calendarGridBody');
+    gridBody.innerHTML = `
+        <div class="col-12 py-5 text-center">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+            <span class="fw-medium text-muted">Loading calendar logs...</span>
+        </div>
+    `;
+    
+    fetch(`../ajax/get_employee_calendar.php?employee_id=${currentEmployeeIdForCalendar}&month=${monthStr}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                calendarEvents = data.events;
+                renderCalendar();
+            } else {
+                gridBody.innerHTML = `
+                    <div class="col-12 py-4 text-center text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Error loading calendar: ${data.message}
+                    </div>
+                `;
+            }
+        })
+        .catch(err => {
+            console.error('Error loading calendar:', err);
+            gridBody.innerHTML = `
+                <div class="col-12 py-4 text-center text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to retrieve calendar logs.
+                </div>
+            `;
+        });
+}
+
+function navigateCalendarMonth(direction) {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + direction);
+    loadCalendarData();
+}
+
+function renderCalendar() {
+    const gridBody = document.getElementById('calendarGridBody');
+    gridBody.innerHTML = '';
+    
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+    
+    // First day of the month
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay(); // (0 = Sun, ..., 6 = Sat)
+    
+    // Total days in month
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    // Previous month total days
+    const prevMonthTotalDays = new Date(year, month, 0).getDate();
+    
+    // Today's date string YYYY-MM-DD
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    let html = '';
+    
+    // Trailing days from previous month
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+        const dayNum = prevMonthTotalDays - i;
+        html += `<div class="col-7th calendar-day-cell other-month"><div class="calendar-day-number">${dayNum}</div></div>`;
+    }
+    
+    // Calendar Stats Aggregation for Current Month
+    let monthlyTrips = 0;
+    let monthlyDistance = 0;
+    let monthlySales = 0;
+    let monthlyCollections = 0;
+    
+    // Current month's days
+    for (let day = 1; day <= totalDays; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = dateStr === todayStr;
+        
+        let eventsHtml = '';
+        let dayHasRoute = false;
+        let dayHasAttendance = false;
+        let attendanceStatus = '';
+        
+        if (calendarEvents[dateStr]) {
+            const ev = calendarEvents[dateStr];
+            
+            // Render routes
+            if (ev.has_route && ev.routes.length > 0) {
+                dayHasRoute = true;
+                monthlyTrips += ev.routes.length;
+                
+                ev.routes.forEach(r => {
+                    const reportUrl = `route_detailed_report.php?id=${r.assignment_id}`;
+                    eventsHtml += `
+                        <a href="${reportUrl}" target="_blank" class="calendar-event-badge route" style="text-decoration: none; display: block;" title="Route: ${escapeHtml(r.route_name)} (${r.status})" onclick="event.stopPropagation();">
+                            🚚 ${escapeHtml(r.route_name)}
+                        </a>
+                    `;
+                });
+            }
+            
+            // Render manual attendance status (office, half-day, absent)
+            if (ev.attendance_status) {
+                dayHasAttendance = true;
+                attendanceStatus = ev.attendance_status;
+                let badgeClass = 'present';
+                let icon = '🏢';
+                let label = 'Present (Office)';
+                
+                if (attendanceStatus === 'half_day') {
+                    badgeClass = 'half-day';
+                    icon = '🏢';
+                    label = 'Half Day';
+                } else if (attendanceStatus === 'absent') {
+                    badgeClass = 'absent';
+                    icon = '❌';
+                    label = 'Absent';
+                }
+                
+                eventsHtml += `
+                    <div class="calendar-event-badge ${badgeClass}" title="${label}">
+                        ${icon} ${label}
+                    </div>
+                `;
+            }
+        }
+        
+        // Log button helper on hover
+        let logButtonHtml = '';
+        if (!dayHasRoute) {
+            logButtonHtml = `
+                <div class="quick-log-btn text-primary mt-auto">
+                    <i class="bi bi-pencil-square"></i> ${dayHasAttendance ? 'Edit' : '+ Log Office'}
+                </div>
+            `;
+        } else {
+            logButtonHtml = `<div class="mt-auto" style="height: 14px;"></div>`;
+        }
+        
+        html += `
+            <div class="col-7th calendar-day-cell ${isToday ? 'today' : ''}" onclick="openAttendanceModal('${dateStr}', ${dayHasRoute}, '${attendanceStatus}')">
+                <div class="calendar-day-number">${day}</div>
+                <div class="w-100 d-flex flex-column gap-1">
+                    ${eventsHtml}
+                </div>
+                ${logButtonHtml}
+            </div>
+        `;
+    }
+    
+    // Render next month's leading days to complete grid row
+    const totalRendered = startDayOfWeek + totalDays;
+    const remainingDays = (7 - (totalRendered % 7)) % 7;
+    for (let day = 1; day <= remainingDays; day++) {
+        html += `<div class="col-7th calendar-day-cell other-month"><div class="calendar-day-number">${day}</div></div>`;
+    }
+    
+    gridBody.innerHTML = html;
+    
+    // Aggregate financial metrics & distances from current list history (for this specific month)
+    const currentMonthKey = calendarCurrentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const currentMonthHistory = currentEmployeeHistory.filter(item => item.month_key === currentMonthKey);
+    
+    currentMonthHistory.forEach(item => {
+        if (item.distance !== null) {
+            monthlyDistance += item.distance;
+        }
+        monthlySales += item.total_sales;
+        monthlyCollections += item.total_collections;
+    });
+    
+    // Update stats cards when in calendar view
+    if (currentHistoryView === 'calendar') {
+        document.getElementById('statTotalTrips').innerText = monthlyTrips;
+        document.getElementById('statTotalDistance').innerText = `${monthlyDistance.toFixed(1)} km`;
+        document.getElementById('statTotalSales').innerText = `Rs ${monthlySales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('statTotalCollections').innerText = `Rs ${monthlyCollections.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+}
+
+function openAttendanceModal(dateStr, hasRoute, currentStatus) {
+    if (hasRoute) {
+        alert("This employee was assigned to a route on this day. Attendance is logged automatically upon route dispatch.");
+        return;
+    }
+    
+    document.getElementById('attEmployeeId').value = currentEmployeeIdForCalendar;
+    document.getElementById('attDate').value = dateStr;
+    
+    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    const dateObj = new Date(dateStr);
+    document.getElementById('attDateDisplay').value = dateObj.toLocaleDateString('en-US', options);
+    
+    const radios = document.getElementsByName('status');
+    radios.forEach(radio => {
+        if (radio.value === currentStatus) {
+            radio.checked = true;
+        } else if (currentStatus === '' && radio.value === 'present') {
+            radio.checked = true;
+        }
+    });
+    
+    const clearOption = document.getElementById('clearAttOption');
+    if (currentStatus !== '') {
+        clearOption.classList.remove('d-none');
+    } else {
+        clearOption.classList.add('d-none');
+    }
+    
+    new bootstrap.Modal(document.getElementById('attendanceModal')).show();
+}
+
+function saveAttendance(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('attendanceForm');
+    const formData = new FormData(form);
+    
+    // Close Modal
+    const modalEl = document.getElementById('attendanceModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+    
+    fetch('../ajax/save_employee_attendance.php', {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload calendar view
+                loadCalendarData();
+                
+                // Fetch list data in background to keep stats in sync
+                fetch(`../ajax/get_employee_history.php?employee_id=${currentEmployeeIdForCalendar}`)
+                    .then(r => r.json())
+                    .then(ld => {
+                        if (ld.success) {
+                            currentEmployeeHistory = ld.history;
+                        }
+                    });
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error('Error saving attendance:', err);
+            alert('Failed to save attendance record.');
+        });
 }
 
 function escapeHtml(text) {
