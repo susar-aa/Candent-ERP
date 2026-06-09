@@ -116,6 +116,9 @@ $totalPay = $totalDays * $employee['daily_rate'];
             <span>Month Calendar – <?php echo htmlspecialchars(date('F Y', strtotime($rangeStart))); ?></span>
         </span>
         <a href="payroll.php?month=<?php echo htmlspecialchars($selected_month); ?>" class="quick-btn quick-btn-primary" style="padding:6px 12px;">Go to Payroll</a>
+        <button type="button" class="quick-btn quick-btn-secondary" onclick="window.print()" style="padding:6px 12px; margin-left:8px;">
+            <i class="bi bi-printer"></i> Print
+        </button>
     </div>
     <div class="p-3" style="background: var(--ios-bg);">
         <div class="border rounded-3 bg-white overflow-hidden shadow-sm">
