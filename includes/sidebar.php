@@ -12,7 +12,7 @@ $routes_pages    = ['dispatch.php', 'load_vehicle.php', 'vehicle_audit.php', 'te
 $pur_pages       = ['purchasing_overview.php','create_po.php','purchase_orders.php','create_grn.php','grn_list.php','stock_ledger.php'];
 $setup_pages     = ['setup_overview.php','products.php','categories.php','main_categories.php','suppliers.php','product_gallery.php']; // Added main_categories.php
 $fin_pages       = ['finance_overview.php','cheques.php','bank_cash.php','pnl_report.php','expenses.php','sales_returns.php', 'aging_reports.php']; // ADDED aging_reports.php
-$hr_pages        = ['hr_overview.php','employees.php','payroll.php']; 
+$hr_pages        = ['hr_overview.php','employees.php','payroll.php','salary_report.php']; 
 $mkt_pages       = ['campaigns.php', 'promotions.php']; 
 $analytics_pages = ['reports.php', 'promo_reports.php', 'agent_claims_report.php', 'category_sales.php', 'product_sales.php', 'area_sales.php', 'monthly_route_summary.php']; 
 $tracking_pages  = ['live_tracking.php', 'route_tracking_history.php'];
@@ -438,6 +438,11 @@ $tracking_pages  = ['live_tracking.php', 'route_tracking_history.php'];
                 <?php if(hasAccess('payroll.php')): ?>
                 <li><a href="payroll.php" class="<?php echo $cur=='payroll.php'?'active':''; ?>">
                     <span class="sub-dot"></span> Payroll &amp; Salaries
+                </a></li>
+                <?php endif; ?>
+                <?php if(hasAccess('salary_report.php')): ?>
+                <li><a href="salary_report.php" class="<?php echo $cur=='salary_report.php'?'active':''; ?>">
+                    <span class="sub-dot"></span> Salary Report
                 </a></li>
                 <?php endif; ?>
             </ul>

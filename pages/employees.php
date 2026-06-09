@@ -411,6 +411,11 @@ include '../includes/sidebar.php';
                                 <i class="bi bi-clock-history"></i>
                             </button>
 
+                            <!-- Salary Report Button -->
+                            <a href="salary_report.php?employee_id=<?php echo $e['id']; ?>&month=<?php echo date('Y-m'); ?>" class="quick-btn" style="padding: 6px 12px; background: rgba(48,200,138,0.15); color: #1A9A3A;" title="Salary Report">
+                                <i class="bi bi-receipt"></i>
+                            </a>
+
                             <!-- Edit Button -->
                             <button class="quick-btn quick-btn-secondary" style="padding: 6px 12px;" title="Edit Employee" 
                                 onclick='openEditModal(<?php echo htmlspecialchars(json_encode($e), ENT_QUOTES, 'UTF-8'); ?>)'>
