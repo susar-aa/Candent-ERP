@@ -55,7 +55,7 @@ try {
             u_rep.name as rep_name, 
             emp_drv.name as driver_name,
             CASE 
-                WHEN rr.driver_id = :emp_id THEN 'Driver'
+                WHEN rr.driver_id = :emp_id_role THEN 'Driver'
                 ELSE 'Representative'
             END as role_in_trip,
             COALESCE((SELECT SUM(total_amount) FROM orders WHERE assignment_id = rr.id), 0) as total_sales,
@@ -64,14 +64,19 @@ try {
         JOIN routes r ON rr.route_id = r.id
         LEFT JOIN users u_rep ON rr.rep_id = u_rep.id
         LEFT JOIN employees emp_drv ON rr.driver_id = emp_drv.id
-        WHERE rr.driver_id = :emp_id 
-           OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id)
-           OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id)
+        WHERE rr.driver_id = :emp_id_drv 
+           OR rr.rep_id = (SELECT user_id FROM employees WHERE id = :emp_id_rep1)
+           OR rr.rep_id IN (SELECT id FROM users WHERE employee_id = :emp_id_rep2)
         ORDER BY rr.assign_date DESC
     ";
 
     $historyStmt = $pdo->prepare($historyQuery);
-    $historyStmt->execute(['emp_id' => $employee_id]);
+    $historyStmt->execute([
+        'emp_id_role' => $employee_id,
+        'emp_id_drv' => $employee_id,
+        'emp_id_rep1' => $employee_id,
+        'emp_id_rep2' => $employee_id
+    ]);
     $historyRaw = $historyStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $history = [];
